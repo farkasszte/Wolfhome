@@ -20,9 +20,6 @@
   ],
   "background": {
     "service_worker": "js/background-service.js",
-    "scripts": [
-      "js/background-service.js"
-    ],
     "type": "module"
   },
   "chrome_url_overrides": {
