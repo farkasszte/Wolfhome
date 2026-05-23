@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Home Dashboard",
+  "version": "1.9",
+  "description": "Premium start page with Google Calendar and Name Day integration.",
+  "permissions": [
+    "identity",
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://wttr.in/*",
+    "https://open.er-api.com/*",
+    "https://www.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://loremflickr.com/*",
+    "https://nameday.abalin.net/*",
+    "https://*.e-kreta.hu/*",
+    "https://calendar.google.com/*"
+  ],
+  "background": {
+    "service_worker": "js/background-service.js",
+    "scripts": [
+      "js/background-service.js"
+    ],
+    "type": "module"
+  },
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data: blob:;"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wolfhome@gergely.farkas",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}

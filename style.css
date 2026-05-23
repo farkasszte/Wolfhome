@@ -1,0 +1,430 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+    --glass-bg: rgba(20, 20, 20, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --accent: #24a66e;
+}
+
+body {
+    font-family: 'Outfit', sans-serif;
+    background-color: #000000;
+    color: #e2e8f0;
+    margin: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+    color-scheme: dark;
+}
+
+#bg-layer {
+    background-color: #000;
+    transition: background-image 0.8s ease-in-out, filter 0.3s ease;
+}
+
+a,
+img,
+button {
+    outline: none !important;
+}
+
+a:focus,
+a:active,
+img:focus,
+img:active {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
+.glass-card {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(36, 166, 110, 0.3);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.text-glow {
+    text-shadow: 0 0 20px var(--accent);
+}
+
+#clock,
+#eur-rate,
+#usd-rate {
+    font-variant-numeric: tabular-nums;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.8s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(36, 166, 110, 0.2);
+    border-radius: 10px;
+}
+
+.calendar-event {
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Form Styles */
+input,
+select,
+textarea {
+    background: #121212 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    outline: none;
+    transition: all 0.2s ease;
+    color-scheme: dark;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--accent) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 0 15px rgba(36, 166, 110, 0.15);
+}
+
+/* ── Custom Select Dropdown ─────────────────────────── */
+.custom-select {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 6px 10px 6px 12px;
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+
+.custom-select-trigger:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.custom-select-trigger svg {
+    flex-shrink: 0;
+    transition: transform 0.2s;
+    color: #94a3b8;
+}
+
+.custom-select.open .custom-select-trigger {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.custom-select.open .custom-select-trigger svg {
+    transform: rotate(180deg);
+}
+
+.custom-select-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 100%;
+    background: #141414;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    overflow: hidden;
+    z-index: 999;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.custom-select.open .custom-select-panel {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.custom-select-option {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.custom-select-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+.custom-select-option.is-selected {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.kanban-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: 1rem;
+    cursor: grab;
+    transition: all 0.2s ease;
+}
+
+.kanban-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.kanban-item:active {
+    cursor: grabbing;
+}
+
+.sortable-ghost {
+    opacity: 0.4;
+    border: 2px dashed var(--accent) !important;
+    background: rgba(36, 166, 110, 0.05) !important;
+}
+
+.sortable-drag {
+    cursor: grabbing;
+    transform: rotate(2deg);
+}
+
+.news-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.news-card:hover {
+    transform: translateY(-4px);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(36, 166, 110, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.news-card-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.news-card-content {
+    padding: 0.75rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.news-card-source {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+}
+
+.news-card-title {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: #fff;
+    margin-bottom: 0.75rem;
+    display: -webkit-box;
+    overflow: visible;
+}
+
+.news-card-meta {
+    margin-top: auto;
+    font-size: 0.75rem;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Settings Modal Refined */
+.settings-container {
+    display: flex;
+    min-height: 0;
+}
+
+.settings-sidebar {
+    width: 200px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+}
+
+.settings-tab-btn i {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.settings-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-tab-btn.active {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
+.settings-tab-btn.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 25%;
+    height: 50%;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+}
+
+.settings-content {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.settings-content::-webkit-scrollbar {
+    width: 5px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.settings-section {
+    display: none;
+}
+
+.settings-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+:root {
+    --accent-rgb: 36, 166, 110;
+}
+
+@media (max-width: 640px) {
+    .settings-container {
+        flex-direction: column;
+        height: 70vh;
+    }
+
+    .settings-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 0.75rem;
+    }
+
+    .settings-tab-btn {
+        white-space: nowrap;
+        padding: 0.5rem 0.75rem;
+    }
+}
