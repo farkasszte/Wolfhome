@@ -250,6 +250,27 @@ textarea:focus {
     transform: rotate(2deg);
 }
 
+.kanban-priority-option.active-priority[data-priority="none"] {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+.kanban-priority-option.active-priority[data-priority="low"] {
+    background: rgba(59, 130, 246, 0.25);
+    border-color: rgb(59, 130, 246);
+    color: #93c5fd;
+}
+.kanban-priority-option.active-priority[data-priority="medium"] {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: rgb(245, 158, 11);
+    color: #fcd34d;
+}
+.kanban-priority-option.active-priority[data-priority="high"] {
+    background: rgba(244, 63, 94, 0.25);
+    border-color: rgb(244, 63, 94);
+    color: #fda4af;
+}
+
 .news-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);

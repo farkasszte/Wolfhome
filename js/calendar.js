@@ -42,12 +42,14 @@ function parseIcsDate(val) {
     }
 }
 
-export function parseICS(icsText, startRange, endRange) {
+export function parseICS(icsText, startRange, endRange, calendarMeta = {}) {
     const unfolded = icsText.replace(/\r?\n[ \t]/g, '');
     const lines = unfolded.split(/\r?\n/);
     
     const events = [];
     let currentEvent = null;
+    const defaultColor = calendarMeta.color || config.accentColor || '#24a66e';
+    const calendarName = calendarMeta.name || '';
     
     for (const line of lines) {
         if (!line.trim()) continue;
@@ -59,7 +61,11 @@ export function parseICS(icsText, startRange, endRange) {
         const key = rawKey.split(';')[0].trim().toUpperCase();
         
         if (key === 'BEGIN' && value.trim().toUpperCase() === 'VEVENT') {
-            currentEvent = { exdates: [] };
+            currentEvent = { 
+                exdates: [],
+                color: defaultColor,
+                calendarName: calendarName
+            };
         } else if (key === 'END' && value.trim().toUpperCase() === 'VEVENT') {
             if (currentEvent && currentEvent.start) {
                 // Biztosítsuk, hogy mindig legyen érvényes végdátum (ha hiányzik, legyen azonos a kezdővel)
@@ -72,6 +78,18 @@ export function parseICS(icsText, startRange, endRange) {
         } else if (currentEvent) {
             if (key === 'SUMMARY') {
                 currentEvent.summary = value
+                    .replace(/\\,/g, ',')
+                    .replace(/\\;/g, ';')
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\/g, '');
+            } else if (key === 'LOCATION') {
+                currentEvent.location = value
+                    .replace(/\\,/g, ',')
+                    .replace(/\\;/g, ';')
+                    .replace(/\\n/g, ' ')
+                    .replace(/\\/g, '');
+            } else if (key === 'DESCRIPTION') {
+                currentEvent.description = value
                     .replace(/\\,/g, ',')
                     .replace(/\\;/g, ';')
                     .replace(/\\n/g, '\n')
@@ -169,6 +187,10 @@ export function parseICS(icsText, startRange, endRange) {
                     expandedEvents.push({
                         id: `${event.id || event.summary}_${instanceCheckStr}`,
                         summary: event.summary,
+                        location: event.location,
+                        description: event.description,
+                        color: event.color,
+                        calendarName: event.calendarName,
                         start: instStart,
                         end: instEnd
                     });
@@ -197,6 +219,16 @@ export function parseICS(icsText, startRange, endRange) {
     return expandedEvents;
 }
 
+export function getActiveCalendars() {
+    if (config.calendars && Array.isArray(config.calendars) && config.calendars.length > 0) {
+        return config.calendars.filter(c => c && c.url && c.url.trim() !== '');
+    }
+    if (config.calendarUrl) {
+        return [{ id: 'default', name: 'Elsődleges naptár', url: config.calendarUrl, color: config.accentColor || '#24a66e' }];
+    }
+    return [];
+}
+
 export function updateAuthStatusUI(isSynced) {
     const authBtn = document.getElementById('auth-btn');
     if (!authBtn) return;
@@ -218,7 +250,7 @@ export function openCalendarSettings() {
         settingsBtn.click();
         document.querySelector('.settings-tab-btn[data-tab="personal"]')?.click();
         setTimeout(() => {
-            const input = document.getElementById('setting-calendar-url');
+            const input = document.getElementById('setting-calendar-url') || document.getElementById('new-calendar-url');
             if (input) {
                 input.focus();
                 input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -245,23 +277,22 @@ export async function requestCalendarPermission() {
 
 export async function checkAuth() {
     // Kényszerítsük a régi, hibás gyorsítótár ürítését egyszer
-    if (localStorage.getItem('gcal_cache_version') !== 'v5') {
+    if (localStorage.getItem('gcal_cache_version') !== 'v6') {
         localStorage.removeItem('gcal_cached_events');
         localStorage.removeItem('gcal_cached_time');
-        localStorage.setItem('gcal_cache_version', 'v5');
+        localStorage.setItem('gcal_cache_version', 'v6');
     }
-
-
 
     loadCachedEvents();
 
-    if (!config.calendarUrl) {
+    const activeCalendars = getActiveCalendars();
+    if (activeCalendars.length === 0) {
         showAuthButton();
         return;
     }
 
     try {
-        await fetchCalendarEvents(config.calendarUrl);
+        await fetchAllCalendarEvents(activeCalendars);
         updateAuthStatusUI(true);
     } catch (error) {
         console.warn("Naptár betöltési hiba:", error);
@@ -269,58 +300,60 @@ export async function checkAuth() {
     }
 }
 
-async function fetchCalendarEvents(url) {
-    const startRange = new Date(currentViewDate.getTime() - 60 * 24 * 60 * 60 * 1000);
-    const endRange = new Date(currentViewDate.getTime() + 60 * 24 * 60 * 60 * 1000);
-
+async function fetchSingleIcal(url) {
     const hasSendMessage = extAPI && extAPI.runtime && extAPI.runtime.sendMessage;
 
     if (!hasSendMessage) {
-        // Fallback for non-extension tab (may hit CORS, but acts as a fallback)
         const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Letöltési hiba: ${response.status}`);
-        }
-        const icsText = await response.text();
-        const events = parseICS(icsText, startRange, endRange);
-
-        localStorage.setItem('gcal_cached_events', JSON.stringify(events));
-        localStorage.setItem('gcal_cached_time', Date.now().toString());
-
-        renderCalendarGrid(events, false);
-        document.getElementById('events-list')?.classList.remove('hidden');
-        document.getElementById('calendar-placeholder')?.classList.add('hidden');
-        if (window.lucide) window.lucide.createIcons();
-        return;
+        if (!response.ok) throw new Error(`Letöltési hiba: ${response.status}`);
+        return await response.text();
     }
 
-    // Modern MV3: delegate fetch to privileged background script to bypass CORS
     return new Promise((resolve, reject) => {
         extAPI.runtime.sendMessage({ action: 'fetchIcal', url: url }, (response) => {
             if (extAPI.runtime.lastError) {
                 reject(new Error(extAPI.runtime.lastError.message));
                 return;
             }
-
             if (response && response.success) {
-                try {
-                    const events = parseICS(response.text, startRange, endRange);
-                    localStorage.setItem('gcal_cached_events', JSON.stringify(events));
-                    localStorage.setItem('gcal_cached_time', Date.now().toString());
-
-                    renderCalendarGrid(events, false);
-                    document.getElementById('events-list')?.classList.remove('hidden');
-                    document.getElementById('calendar-placeholder')?.classList.add('hidden');
-                    if (window.lucide) window.lucide.createIcons();
-                    resolve();
-                } catch (e) {
-                    reject(e);
-                }
+                resolve(response.text);
             } else {
                 reject(new Error(response ? response.error : "Ismeretlen hiba a háttérben."));
             }
         });
     });
+}
+
+async function fetchAllCalendarEvents(calendars) {
+    const startRange = new Date(currentViewDate.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const endRange = new Date(currentViewDate.getTime() + 60 * 24 * 60 * 60 * 1000);
+
+    const promises = calendars.map(async (cal) => {
+        try {
+            const icsText = await fetchSingleIcal(cal.url);
+            return parseICS(icsText, startRange, endRange, cal);
+        } catch (err) {
+            console.warn(`Naptár betöltési hiba (${cal.name || cal.url}):`, err);
+            return [];
+        }
+    });
+
+    const results = await Promise.allSettled(promises);
+    const allEvents = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value);
+
+    if (allEvents.length > 0 || calendars.length > 0) {
+        localStorage.setItem('gcal_cached_events', JSON.stringify(allEvents));
+        localStorage.setItem('gcal_cached_time', Date.now().toString());
+
+        renderCalendarGrid(allEvents, false);
+        document.getElementById('events-list')?.classList.remove('hidden');
+        document.getElementById('calendar-placeholder')?.classList.add('hidden');
+        if (window.lucide) window.lucide.createIcons();
+    } else {
+        showAuthButton();
+    }
 }
 
 function showAuthButton() {
@@ -377,6 +410,7 @@ export function renderCalendarGrid(events, isOffline = false) {
         tag('h2', { className: "text-2xl font-bold tracking-tight uppercase text-white/90", textContent: viewMode === 'month' ? monthName : "Következő 2 hét" }),
         tag('div', { className: "flex gap-1 items-center" }, [
             tag('button', { className: "p-1.5 bg-black/30 border border-white/10 rounded-lg hover:bg-black/50 hover:text-accent transition-all cursor-pointer", onclick: prevMonth, title: "Előző hónap" }, [createLucideIcon('chevron-left', 'w-4 h-4')]),
+            tag('button', { className: "px-2.5 py-1.5 bg-black/30 border border-white/10 rounded-lg hover:bg-black/50 hover:text-accent text-xs font-bold uppercase tracking-wider text-slate-300 transition-all cursor-pointer", onclick: goToToday, title: "Ugrás a mai napra" }, ["Ma"]),
             tag('button', { className: "p-1.5 bg-black/30 border border-white/10 rounded-lg hover:bg-black/50 hover:text-accent transition-all cursor-pointer", onclick: nextMonth, title: "Következő hónap" }, [createLucideIcon('chevron-right', 'w-4 h-4')]),
             tag('button', {
                 className: `ml-2 px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-lg transition-all cursor-pointer ${viewMode === 'month' ? 'bg-black/30 border border-white/10 text-slate-400 hover:bg-black/50' : 'bg-accent/20 text-accent border border-accent/30'}`,
@@ -398,7 +432,7 @@ export function renderCalendarGrid(events, isOffline = false) {
     const header = tag('div', { className: "flex items-center justify-between mb-8" }, [
         tag('div', { className: "flex items-center gap-4 flex-wrap" }, headerChildren),
         tag('button', {
-            className: "flex items-center gap-2 px-3 py-1.5 bg-black/30 border border-white/10 rounded-full hover:bg-black/50 transition-all",
+            className: "flex items-center gap-2 px-3 py-1.5 bg-black/30 border border-white/10 rounded-full hover:bg-black/50 transition-all cursor-pointer",
             onclick: () => window.open('https://calendar.google.com/calendar/u/0/r/eventedit', '_blank'),
             title: "Új esemény hozzáadása"
         }, [
@@ -539,8 +573,9 @@ export function renderCalendarGrid(events, isOffline = false) {
             else isPast = new Date(en + 'T00:00:00') < now;
 
             const isFirstVisible = isFirst || index % 7 === 0;
-            const borderStyle = isFirst && !isPast ? 'border-color: var(--accent);' : '';
-            const bgStyle = isPast ? '' : 'background-color: var(--accent); opacity: 0.25;';
+            const eventColor = e.color || 'var(--accent)';
+            const borderStyle = isFirst && !isPast ? `border-color: ${eventColor};` : '';
+            const bgStyle = isPast ? '' : `background-color: ${eventColor}; opacity: 0.35;`;
 
             const ind = tag('div', {
                 className: `relative h-5 flex items-center mb-0.5 transition-all
@@ -588,8 +623,9 @@ export function renderCalendarGrid(events, isOffline = false) {
 
         const cellHeader = tag('div', { className: 'flex justify-between items-center w-full' }, cellHeaderChildren);
 
+        // Fix: always navigate to the date's Google Calendar view, never use undefined htmlLink
         const cell = tag('a', {
-            href: dayEvents.length > 0 ? dayEvents[0].htmlLink : `https://calendar.google.com/calendar/u/0/r/day/${currentDate.getFullYear()}/${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
+            href: `https://calendar.google.com/calendar/u/0/r/day/${currentDate.getFullYear()}/${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
             target: "_blank",
             style: isTodayStyle,
             className: `h-24 w-full rounded-xl border ${isToday ? 'border-accent' : 'border-white/[0.05] bg-white/[0.02]'} ${!currentMonth ? 'opacity-30 grayscale' : ''} p-2 flex flex-col hover:bg-white/5 transition-all cursor-pointer overflow-hidden relative`
@@ -599,11 +635,29 @@ export function renderCalendarGrid(events, isOffline = false) {
         if (dayEvents.length > 0) {
             const isRight = (index % 7) >= 4;
             const card = tag('div', {
-                className: `absolute ${isRight ? 'right-full mr-2' : 'left-full ml-2'} top-0 w-72 glass p-4 rounded-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-2xl border border-white/10 ${isRight ? '-translate-x-2' : 'translate-x-2'} group-hover:translate-x-0`
+                className: `absolute ${isRight ? 'right-full mr-2' : 'left-full ml-2'} top-0 w-80 glass p-4 rounded-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-50 shadow-2xl border border-white/10 ${isRight ? '-translate-x-2' : 'translate-x-2'} group-hover:translate-x-0`
             }, [
-                tag('h5', { className: "text-sm font-bold text-accent mb-4", textContent: currentDate.toLocaleDateString('hu-HU', { month: 'long', day: 'numeric' }) }),
-                tag('div', { className: "space-y-3" }, dayEvents.map(e => tag('div', { className: "space-y-1 border-l-2 border-accent/30 pl-3" }, [
-                    tag('div', { className: "flex justify-between" }, [tag('span', { className: "text-xs font-bold text-white", textContent: e.summary }), tag('span', { className: "text-xs text-slate-500", textContent: e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'Egész nap' })])
+                tag('h5', { className: "text-sm font-bold text-accent mb-3 flex items-center justify-between", textContent: currentDate.toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', weekday: 'short' }) }),
+                tag('div', { className: "space-y-3 max-h-72 overflow-y-auto no-scrollbar" }, dayEvents.map(e => tag('div', { 
+                    className: "space-y-1 pl-3 transition-all",
+                    style: `border-left: 3px solid ${e.color || 'var(--accent)'};`
+                }, [
+                    tag('div', { className: "flex justify-between items-start gap-2" }, [
+                        tag('div', { className: "flex flex-col min-w-0" }, [
+                            tag('span', { className: "text-xs font-bold text-white leading-tight", textContent: e.summary }),
+                            e.calendarName ? tag('span', { 
+                                className: "text-[10px] font-bold tracking-wider uppercase mt-0.5", 
+                                style: `color: ${e.color || 'var(--accent)'};`, 
+                                textContent: e.calendarName 
+                            }) : null
+                        ]),
+                        tag('span', { className: "text-[11px] text-slate-400 font-mono whitespace-nowrap shrink-0", textContent: e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'Egész nap' })
+                    ]),
+                    e.location ? tag('div', { className: "flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5" }, [
+                        createLucideIcon('map-pin', 'w-3 h-3 text-slate-500 shrink-0'),
+                        tag('span', { className: "truncate", textContent: e.location })
+                    ]) : null,
+                    e.description ? tag('p', { className: "text-[11px] text-slate-400 line-clamp-2 leading-relaxed pt-0.5 opacity-80", textContent: e.description.slice(0, 120) }) : null
                 ])))
             ]);
             wrapper.appendChild(card);
@@ -616,11 +670,17 @@ export function renderCalendarGrid(events, isOffline = false) {
     list.appendChild(grid);
     if (window.lucide) window.lucide.createIcons();
 
-    if (config.calendarUrl) {
+    const activeCalendars = getActiveCalendars();
+    if (activeCalendars.length > 0) {
         updateAuthStatusUI(!isOffline);
     } else {
         updateAuthStatusUI(false);
     }
+}
+
+export function goToToday() {
+    currentViewDate = new Date();
+    checkAuth();
 }
 
 export function prevMonth() {
@@ -634,3 +694,4 @@ export function nextMonth() {
     currentViewDate.setMonth(currentViewDate.getMonth() + 1);
     checkAuth();
 }
+

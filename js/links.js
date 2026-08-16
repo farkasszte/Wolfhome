@@ -111,7 +111,7 @@ export function renderLinks() {
         const showGroups = config.showGroups !== false;
 
         const sectionHeader = tag('div', {
-            className: `flex items-center justify-between px-2 group/sec ${!showGroups ? 'hidden' : ''}`
+            className: `section-header flex items-center justify-between px-2 group/sec ${!showGroups ? 'hidden' : ''} ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`
         }, [
             tag('div', {
                 className: "flex items-center gap-2 cursor-pointer flex-1",

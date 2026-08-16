@@ -11,7 +11,7 @@ export function checkExtensionEnvironment() {
     if (!extAPI || !extAPI.runtime || !extAPI.runtime.id) {
         const warning = tag('div', { 
             className: "fixed bottom-4 right-4 bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl text-xs font-bold animate-pulse z-[100]", 
-            textContent: "FIGYELEM: A névnapok és a naptár csak akkor működik, ha kiegészítőként töltöd be a Firefoxba!" 
+            textContent: "FIGYELEM: A naptár és szinkronizáció csak kiegészítőként betöltve működik!" 
         });
         document.body.appendChild(warning);
     }

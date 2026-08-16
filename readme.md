@@ -9,19 +9,23 @@ A projekt a legmodernebb webdizájn trendeket (üveghatás / *glassmorphic* kár
 ## 🌟 Főbb Jellemzők
 
 ### 1. Dinamikus Információs Fejléc (Widgets)
-*   **Időjárás és Csillagászat:** Aktuális hőmérséklet, szöveges előrejelzés és ikon (wttr.in alapú), kiegészítve a napkelte és napnyugta pontos 24 órás időpontjával.
+*   **Időjárás és Csillagászat:** Aktuális hőmérséklet, szöveges előrejelzés és részletes ikonok (wttr.in alapú), valamint napkelte és napnyugta időpontjai.
+*   **3 Napos Mini Előrejelzés (Hover):** Az időjárás widget fölé vive az egeret azonnal megjelenik egy elegáns lebegő panel a következő napok időjárásával és hőmérsékleteivel.
 *   **Valós Idejű Árfolyamok:** Automatikusan frissülő EUR/HUF és USD/HUF MNB középárfolyam kijelzés.
 *   **Magyar Névnapok:** A mai napon ünneplő nevek kijelzése külső API lekérdezéssel és offline helyi adatbázis-fallbackkel.
 *   **Óra és Dátum:** Testreszabható óra kijelzés (másodpercekkel vagy anélkül).
 
 ### 2. Integrált Naptár Kártya (Calendar)
-*   **Google Naptár Szinkronizáció:** Teljesen integrált kétirányú naptár, amely iCal (ICS) csatornán keresztül szinkronizálja az eseményeket.
+*   **Több Google Naptár Támogatása:** Tetszőleges számú Google Naptár (iCal / ICS) szinkronizációja egyedi nevekkel és színekkel.
+*   **"Ma" (Today) Gomb:** Egyetlen kattintással visszaugrik az aktuális hónapra és mai napra.
+*   **Részletes Lebegő Tooltip:** Események előnézete a hozzárendelt naptár színével, időponttal, helyszínnel és leírás részlettel.
 *   **Ismétlődő Események Kezelése:** Képes feldolgozni a napi, heti, havi és éves ismétlődő mintákat.
 *   **Rugalmas Nézetek:** Váltás a klasszikus havi nézet és a kompakt 2 hetes sávos nézet között.
 *   **Beépített Szinkronizáló Gomb:** Dinamikus frissítés és állapotkijelzés (sikeres kapcsolat esetén kiemelt szín, hiba esetén pulzáló narancssárga figyelmeztetés).
 
 ### 3. Kanban Tábla (Kanban Board)
-*   **Teendők Kezelése:** Háromoszlopos elrendezés (Teendő, Folyamatban, Kész) a mindennapi feladatok menedzseléséhez.
+*   **Teendők Kezelése & Prioritások:** Háromoszlopos elrendezés (Teendő, Folyamatban, Kész) választható prioritási szintekkel (Alacsony, Közepes, Sürgős) és színkódolt címkékkel.
+*   **Oszlop Számlálók:** Dinamikusan frissülő kártyaszámlálók minden oszlop fejlécében.
 *   **Drag-and-Drop:** Interaktív és zökkenőmentes kártyamozgatás a SortableJS segítségével.
 
 ### 4. Testreszabható Hírcsatorna (RSS Feed)
@@ -90,7 +94,7 @@ A bővítmény közvetlenül betölthető bármely Chromium alapú böngészőbe
 ## 📚 Felhasznált Külső Könyvtárak
 
 Az adatbiztonság és a maximális sebesség érdekében minden könyvtár lokálisan, minifikált formában van jelen, távoli kódfuttatás nélkül:
-*   [Tailwind CSS](tailwind.min.js) – A reszponzív, modern stílusokért.
+*   [Tailwind CSS](tailwind.compiled.css) – Optimalizált, pre-compiled CSS a reszponzív, modern stílusokért.
 *   [Lucide Icons](lucide.min.js) – A letisztult és modern vektoros ikonokért.
 *   [SortableJS](sortable.min.js) – A Kanban tábla és könyvjelzők zökkenőmentes drag-and-drop élményéért.
 

@@ -4,7 +4,6 @@
   "version": "1.9",
   "description": "Premium start page with Google Calendar and Name Day integration.",
   "permissions": [
-    "identity",
     "storage",
     "declarativeNetRequest"
   ],
@@ -12,7 +11,6 @@
     "https://wttr.in/*",
     "https://open.er-api.com/*",
     "https://www.googleapis.com/*",
-    "https://accounts.google.com/*",
     "https://loremflickr.com/*",
     "https://nameday.abalin.net/*",
     "https://*.e-kreta.hu/*",

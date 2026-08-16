@@ -5,12 +5,12 @@ import { config, loadConfig, saveConfig } from './js/config.js';
 import { updateBackground, debouncedBgUpdate, updateBackgroundActionsVisibility } from './js/background.js';
 import { updateTime, updateNameday, fetchWeather, updateExchangeRates } from './js/widgets.js';
 import { renderLinks, showLinkModal, saveLink, deleteLink, closeLinkModal } from './js/links.js';
-import { renderKanban } from './js/kanban.js';
+import { renderKanban, openKanbanModal, saveKanbanModal, closeKanbanModal, deleteKanbanCard } from './js/kanban.js';
 import { fetchNews, renderNewsFeedsSettings, updateRestoreNewsVisibility } from './js/news.js';
-import { checkAuth, openCalendarSettings, requestCalendarPermission } from './js/calendar.js';
+import { checkAuth, openCalendarSettings, requestCalendarPermission, loadCachedEvents } from './js/calendar.js';
 import { toggleFocusMode, createCustomSelect, getIsFocusMode } from './js/ui.js';
 import { checkExtensionEnvironment, exportConfig, importConfig } from './js/storage-actions.js';
-import { compressImage } from './js/utils.js';
+import { compressImage, createLucideIcon, tag } from './js/utils.js';
 
 let originalConfig = null;
 let csIconType = null;
@@ -46,9 +46,6 @@ async function init() {
     fetchNews();
     checkAuth();
 
-    // Frissítsük az auth-t 20 percenként, hogy ne járjon le a token
-    setInterval(checkAuth, 20 * 60 * 1000);
-
     // Background logic
     const now = Date.now();
     const lastUpdate = config.lastBgUpdate || 0;
@@ -67,6 +64,42 @@ async function init() {
     checkExtensionEnvironment();
 }
 
+function renderCalendarsSettings() {
+    const list = document.getElementById('settings-calendars-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const calendars = config.calendars || [];
+    if (calendars.length === 0) {
+        list.appendChild(tag('p', { className: 'text-xs text-slate-500 py-2 italic', textContent: 'Nincs még naptár hozzáadva.' }));
+        return;
+    }
+
+    calendars.forEach((cal, index) => {
+        const item = tag('div', { className: 'flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5 gap-2' }, [
+            tag('div', { className: 'flex items-center gap-2.5 min-w-0 flex-1' }, [
+                tag('div', { className: 'w-3 h-3 rounded-full shrink-0 shadow-sm', style: `background-color: ${cal.color || 'var(--accent)'};` }),
+                tag('div', { className: 'flex flex-col min-w-0' }, [
+                    tag('span', { className: 'text-xs font-bold text-white truncate', textContent: cal.name || 'Névtelen naptár' }),
+                    tag('span', { className: 'text-[11px] text-slate-500 truncate', textContent: cal.url })
+                ])
+            ]),
+            tag('button', {
+                className: 'p-1.5 hover:text-red-400 text-slate-400 transition-colors cursor-pointer shrink-0',
+                title: 'Naptár törlése',
+                onclick: () => {
+                    config.calendars.splice(index, 1);
+                    saveConfig();
+                    renderCalendarsSettings();
+                    checkAuth();
+                }
+            }, [createLucideIcon('trash-2', 'w-3.5 h-3.5')])
+        ]);
+        list.appendChild(item);
+    });
+    if (window.lucide) window.lucide.createIcons();
+}
+
 function setupEventListeners() {
     // Link Modal
     document.getElementById('close-modal-btn')?.addEventListener('click', closeLinkModal);
@@ -78,11 +111,12 @@ function setupEventListeners() {
         document.getElementById('custom-icon-group').classList.toggle('hidden', e.target.value !== 'custom');
     });
 
-    // Calendar Auth / Refresh (Event delegation since the button is dynamically rendered in the calendar header)
+    // Calendar Auth / Refresh
     document.addEventListener('click', async (e) => {
         const authBtn = e.target.closest('#auth-btn');
         if (authBtn) {
-            if (config.calendarUrl) {
+            const hasCalendars = config.calendars && config.calendars.some(c => c && c.url);
+            if (hasCalendars || config.calendarUrl) {
                 await requestCalendarPermission();
                 checkAuth();
             } else {
@@ -90,8 +124,6 @@ function setupEventListeners() {
             }
         }
     });
-
-
 
     // Storage
     document.getElementById('export-btn')?.addEventListener('click', exportConfig);
@@ -144,7 +176,6 @@ function setupEventListeners() {
             document.getElementById('setting-show-seconds').checked = config.showSeconds !== false;
             document.getElementById('setting-show-namedays').checked = config.showNamedays !== false;
             document.getElementById('setting-border-radius').value = config.iconBorderRadius ?? 12;
-            document.getElementById('setting-calendar-url').value = config.calendarUrl || '';
             document.getElementById('setting-kreta-url').value = config.kretaUrl || '';
 
             document.getElementById('setting-bg-type').value = config.bgType || 'none';
@@ -172,6 +203,7 @@ function setupEventListeners() {
             csRefresh?.sync();
 
             updateSettingsVisibility();
+            renderCalendarsSettings();
             renderNewsFeedsSettings();
             updateRestoreNewsVisibility();
             originalConfig = JSON.parse(JSON.stringify(config));
@@ -197,6 +229,7 @@ function setupEventListeners() {
                 updateTime();
                 renderLinks();
                 fetchWeather();
+                checkAuth();
                 config.currentView = 'calendar';
                 saveConfig();
                 updateViewUI();
@@ -378,7 +411,36 @@ function setupEventListeners() {
     });
 
     document.getElementById('setting-show-namedays')?.addEventListener('change', (e) => {
-        config.showNamedays = e.target.checked; saveConfig(); checkAuth();
+        config.showNamedays = e.target.checked;
+        saveConfig();
+        loadCachedEvents();
+    });
+
+    document.getElementById('add-calendar-btn')?.addEventListener('click', async () => {
+        const nameEl = document.getElementById('new-calendar-name');
+        const urlEl = document.getElementById('new-calendar-url');
+        const colorEl = document.getElementById('new-calendar-color');
+        const name = nameEl.value.trim() || 'Naptár';
+        const url = urlEl.value.trim();
+        const color = colorEl.value || config.accentColor || '#24a66e';
+
+        if (url) {
+            if (!config.calendars) config.calendars = [];
+            config.calendars.push({
+                id: 'cal_' + Date.now(),
+                name,
+                url,
+                color
+            });
+            nameEl.value = '';
+            urlEl.value = '';
+            saveConfig();
+            renderCalendarsSettings();
+            await requestCalendarPermission();
+            checkAuth();
+        } else {
+            alert("Kérlek add meg a naptár iCal URL címét!");
+        }
     });
 
     document.getElementById('setting-border-radius')?.addEventListener('input', (e) => {
@@ -474,14 +536,25 @@ function setupEventListeners() {
 
     updateViewUI();
 
-    // Kanban Actions
-    document.getElementById('add-kanban-card-btn')?.addEventListener('click', () => {
-        const text = prompt("Új feladat:");
-        if (text) {
-            config.kanban.todo.push({ id: Date.now().toString(), text });
-            saveConfig();
-            renderKanban();
+    // Kanban Actions & Modal Listeners
+    document.getElementById('add-kanban-card-btn')?.addEventListener('click', () => openKanbanModal());
+    document.getElementById('close-kanban-modal-btn')?.addEventListener('click', closeKanbanModal);
+    document.getElementById('save-kanban-modal-btn')?.addEventListener('click', saveKanbanModal);
+    document.getElementById('delete-kanban-modal-btn')?.addEventListener('click', () => {
+        if (confirm("Biztosan törlöd ezt a feladatot?")) {
+            const priorityInput = document.getElementById('kanban-selected-priority');
+            // We use the active card ID in kanban.js
+            deleteKanbanCard();
         }
+    });
+
+    document.querySelectorAll('.kanban-priority-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.kanban-priority-option').forEach(b => b.classList.remove('active-priority'));
+            btn.classList.add('active-priority');
+            const priorityInput = document.getElementById('kanban-selected-priority');
+            if (priorityInput) priorityInput.value = btn.dataset.priority;
+        });
     });
 
     document.getElementById('refresh-news-btn')?.addEventListener('click', () => fetchNews());

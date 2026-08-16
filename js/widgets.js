@@ -52,6 +52,20 @@ export async function updateNameday() {
     }
 }
 
+export function getWeatherIconName(code) {
+    const c = parseInt(code, 10);
+    if (c === 113) return 'sun';
+    if (c === 116) return 'cloud-sun';
+    if (c === 119 || c === 122) return 'cloud';
+    if ([143, 248, 260].includes(c)) return 'cloud-fog';
+    if ([176, 263, 266, 293, 296, 299, 302, 305, 308].includes(c)) return 'cloud-rain';
+    if ([179, 182, 185, 281, 284, 311, 314, 317, 350, 377].includes(c)) return 'cloud-hail';
+    if ([200, 386, 389, 392, 395].includes(c)) return 'cloud-lightning';
+    if ([227, 230, 323, 326, 329, 332, 335, 338, 368, 371, 374].includes(c)) return 'snowflake';
+    if ([353, 356, 359, 362, 365].includes(c)) return 'cloud-drizzle';
+    return 'cloud';
+}
+
 /**
  * Fetch and display weather information
  */
@@ -65,28 +79,24 @@ export async function fetchWeather() {
     if (!tempEl || !weatherDescEl) return;
 
     try {
-        const response = await fetch(`https://wttr.in/${config.city}?format=j1&lang=hu`);
+        const queryCity = config.city ? encodeURIComponent(config.city) : '';
+        const response = await fetch(`https://wttr.in/${queryCity}?format=j1&lang=hu`);
         const data = await response.json();
         const current = data.current_condition[0];
         
         tempEl.textContent = `${current.temp_C} °C`;
         const desc = current.lang_hu?.[0]?.value || current.weatherDesc[0].value;
         
+        const detectedCity = config.city || data.nearest_area?.[0]?.areaName?.[0]?.value || 'Időjárás';
         const weatherCityEl = document.getElementById('weather-city');
         if (weatherCityEl) {
-            weatherCityEl.textContent = config.city;
+            weatherCityEl.textContent = detectedCity;
         }
         weatherDescEl.textContent = desc;
 
-        const code = parseInt(current.weatherCode);
-        let iconName = 'cloud';
-        if (code === 113) iconName = 'sun';
-        else if (code <= 119) iconName = 'cloud-sun';
-        else if ([176, 263, 266, 293, 296, 299, 302, 305, 308].includes(code)) iconName = 'cloud-rain';
-        else if ([227, 230, 323, 326, 329, 332, 335, 338].includes(code)) iconName = 'snowflake';
-
+        const iconName = getWeatherIconName(current.weatherCode);
         weatherIconEl.innerHTML = '';
-        weatherIconEl.appendChild(createLucideIcon(iconName, "w-10 h-10 text-slate-400"));
+        weatherIconEl.appendChild(createLucideIcon(iconName, "w-10 h-10 text-slate-300"));
 
         const weatherLink = document.getElementById('weather-link');
         if (weatherLink) {
@@ -117,7 +127,7 @@ export async function fetchWeather() {
                     targetCity = closest;
                 }
             }
-            weatherLink.href = `https://www.idokep.hu/idojaras/${targetCity}`;
+            weatherLink.href = `https://www.idokep.hu/idojaras/${targetCity || 'Budapest'}`;
         }
 
         if (data.weather?.[0]?.astronomy?.[0]) {
@@ -127,18 +137,66 @@ export async function fetchWeather() {
                 const [time, modifier] = timeStr.split(' ');
                 let [hours, minutes] = time.split(':');
                 if (hours === '12') hours = '00';
-                if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
+                if (modifier && modifier.toUpperCase() === 'PM') hours = (parseInt(hours, 10) + 12).toString();
                 return `${hours.padStart(2, '0')}:${minutes}`;
             };
             if (sunriseEl) sunriseEl.textContent = to24h(astro.sunrise);
             if (sunsetEl) sunsetEl.textContent = to24h(astro.sunset);
         }
+
+        // Render 3-Day Forecast Tooltip
+        renderForecast(data.weather, detectedCity);
+
         if (window.lucide) window.lucide.createIcons();
     } catch (error) {
         if (tempEl) tempEl.textContent = "-- °C";
         if (weatherDescEl) weatherDescEl.textContent = "Időjárás nem elérhető";
         console.error("Időjárás hiba:", error);
     }
+}
+
+/**
+ * Render 3-day forecast into hover tooltip
+ */
+function renderForecast(weatherDays, cityName) {
+    const card = document.getElementById('weather-forecast-card');
+    const daysContainer = document.getElementById('forecast-days');
+    const forecastCity = document.getElementById('forecast-city');
+    if (!card || !daysContainer || !weatherDays || !weatherDays.length) return;
+
+    if (forecastCity) forecastCity.textContent = cityName;
+    daysContainer.innerHTML = '';
+
+    const dayLabels = ['Ma', 'Holnap', 'Holnapután'];
+
+    weatherDays.slice(0, 3).forEach((day, idx) => {
+        const dateObj = new Date(day.date + 'T12:00:00');
+        let dayName = dayLabels[idx];
+        if (!dayName) {
+            dayName = dateObj.toLocaleDateString('hu-HU', { weekday: 'short' });
+        }
+
+        const middayHourly = day.hourly?.[4] || day.hourly?.[Math.floor(day.hourly.length / 2)] || {};
+        const code = middayHourly.weatherCode || day.hourly?.[0]?.weatherCode || '119';
+        const iconName = getWeatherIconName(code);
+        const desc = middayHourly.lang_hu?.[0]?.value || middayHourly.weatherDesc?.[0]?.value || '';
+
+        const col = tag('div', { className: "flex flex-col items-center p-2 rounded-xl bg-white/[0.03] border border-white/[0.05]" }, [
+            tag('span', { className: "text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1", textContent: dayName }),
+            tag('div', { className: "my-1 flex items-center justify-center text-slate-300" }, [
+                createLucideIcon(iconName, "w-6 h-6")
+            ]),
+            tag('div', { className: "flex items-baseline gap-1 mt-1 text-xs" }, [
+                tag('span', { className: "font-bold text-accent", textContent: `${day.maxtempC}°` }),
+                tag('span', { className: "text-slate-500 text-[10px]", textContent: `${day.mintempC}°` })
+            ]),
+            tag('span', { className: "text-[10px] text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc })
+        ]);
+
+        daysContainer.appendChild(col);
+    });
+
+    card.classList.remove('hidden');
 }
 
 /**

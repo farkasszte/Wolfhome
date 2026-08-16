@@ -1,0 +1,14 @@
+{
+  "name": "wolfhome",
+  "version": "1.9.0",
+  "private": true,
+  "description": "WolfHome Dashboard",
+  "scripts": {
+    "build:css": "node ./node_modules/@tailwindcss/cli/dist/index.mjs -i ./input.css -o ./tailwind.compiled.css --minify",
+    "watch:css": "node ./node_modules/@tailwindcss/cli/dist/index.mjs -i ./input.css -o ./tailwind.compiled.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

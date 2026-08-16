@@ -11,6 +11,9 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Dependencies
+node_modules/
+
 # Local configuration or secrets
 .env
 .env.local

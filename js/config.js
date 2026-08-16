@@ -8,6 +8,7 @@ export const IMAGE_KEYS = ['bgImage', 'bgCachedImage'];
 export const DEFAULT_CONFIG = {
     city: '',
     calendarUrl: '',
+    calendars: [],
     kretaUrl: '',
     showGroups: true,
     openInNewTab: true,
@@ -40,7 +41,7 @@ export const DEFAULT_CONFIG = {
     ],
     currentView: 'calendar',
     kanban: {
-        todo: [{ id: '1', text: 'Üdv az WolfHome Kanban-on! 🐺' }],
+        todo: [{ id: '1', text: 'Üdv az WolfHome Kanban-on! 🐺', priority: 'medium' }],
         progress: [],
         done: []
     },
@@ -55,6 +56,26 @@ export const DEFAULT_CONFIG = {
 
 // Application state
 export let config = { ...DEFAULT_CONFIG, calendarViewMode: 'month' };
+
+function migrateConfig(saved) {
+    if (!saved) return saved;
+    // Migration for links -> sections
+    if (saved.links) {
+        saved.sections = [{ name: 'Gyorselérés', links: saved.links }];
+        delete saved.links;
+    }
+    // Migration for calendarUrl -> calendars array
+    if (!saved.calendars || !Array.isArray(saved.calendars) || saved.calendars.length === 0) {
+        if (saved.calendarUrl) {
+            saved.calendars = [
+                { id: 'cal_' + Date.now(), name: 'Elsődleges naptár', url: saved.calendarUrl, color: saved.accentColor || '#24a66e' }
+            ];
+        } else {
+            saved.calendars = [];
+        }
+    }
+    return saved;
+}
 
 /**
  * Load configuration from storage
@@ -79,11 +100,7 @@ export async function loadConfig() {
                     }
                 }
                 if (saved) {
-                    // Migration if needed
-                    if (saved.links) {
-                        saved.sections = [{ name: 'Gyorselérés', links: saved.links }];
-                        delete saved.links;
-                    }
+                    saved = migrateConfig(saved);
                     config = { ...config, ...saved, ...loadImages() };
                 }
                 resolve();
@@ -92,11 +109,8 @@ export async function loadConfig() {
             const local = localStorage.getItem('wolfhome_config');
             if (local) {
                 try {
-                    const saved = JSON.parse(local);
-                    if (saved.links) {
-                        saved.sections = [{ name: 'Gyorselérés', links: saved.links }];
-                        delete saved.links;
-                    }
+                    let saved = JSON.parse(local);
+                    saved = migrateConfig(saved);
                     config = { ...config, ...saved, ...loadImages() };
                 } catch (e) { }
             }
