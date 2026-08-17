@@ -17,6 +17,9 @@
     "https://calendar.google.com/*"
   ],
   "background": {
+    "scripts": [
+      "js/background-service.js"
+    ],
     "service_worker": "js/background-service.js",
     "type": "module"
   },
