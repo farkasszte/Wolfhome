@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Home Dashboard",
-  "version": "2.2",
+  "version": "2.3",
   "description": "Premium start page with Google Calendar and Name Day integration.",
   "permissions": [
     "storage",

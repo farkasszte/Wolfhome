@@ -429,14 +429,14 @@ function renderForecast(weatherDays, cityName) {
                 tag('span', { className: "text-slate-500 text-xs", textContent: `${day.mintempC}°` })
             ]),
             tag('span', { className: "text-xs text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc }),
-            tag('div', { className: "flex items-center justify-center gap-2 mt-2 pt-1.5 border-t border-white/5 text-[11px] text-slate-400 w-full" }, [
-                tag('div', { className: "flex items-center gap-0.5", title: "Csapadék valószínűsége" }, [
-                    createLucideIcon('umbrella', "w-3 h-3 text-blue-400"),
+            tag('div', { className: "flex flex-col items-center gap-1 mt-2 pt-1.5 border-t border-white/5 text-xs text-slate-400 w-full" }, [
+                tag('div', { className: "flex items-center justify-center gap-1", title: "Csapadék valószínűsége" }, [
+                    createLucideIcon('umbrella', "w-3.5 h-3.5 text-blue-400"),
                     tag('span', { textContent: `${rainChance}%` })
                 ]),
-                tag('div', { className: "flex items-center gap-0.5", title: "Várható maximális szélsebesség" }, [
-                    createLucideIcon('wind', "w-3 h-3 text-slate-400"),
-                    tag('span', { textContent: `${maxWind}km/h` })
+                tag('div', { className: "flex items-center justify-center gap-1", title: "Várható maximális szélsebesség" }, [
+                    createLucideIcon('wind', "w-3.5 h-3.5 text-slate-400"),
+                    tag('span', { textContent: `${maxWind} km/h` })
                 ])
             ])
         ]);

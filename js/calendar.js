@@ -6,6 +6,8 @@ import { tag, createLucideIcon, extAPI } from './utils.js';
 import { namedayDB, getNameday } from './nameday-db.js';
 export { getNameday };
 
+let currentViewDate = new Date();
+
 export function loadCachedEvents() {
     try {
         const cached = localStorage.getItem('gcal_cached_events');

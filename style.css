@@ -456,3 +456,18 @@ textarea:focus {
         padding: 0.5rem 0.75rem;
     }
 }
+
+.kanban-search-wrapper {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kanban-search-wrapper:focus-within {
+    border-color: var(--accent);
+    background-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 36, 166, 110), 0.2);
+}
+
+.kanban-search-wrapper:focus-within svg,
+.kanban-search-wrapper:focus-within i {
+    color: var(--accent);
+}
