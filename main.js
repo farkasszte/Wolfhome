@@ -5,7 +5,7 @@ import { config, loadConfig, saveConfig } from './js/config.js';
 import { updateBackground, debouncedBgUpdate, updateBackgroundActionsVisibility } from './js/background.js';
 import { updateTime, updateNameday, fetchWeather, updateExchangeRates } from './js/widgets.js';
 import { renderLinks, showLinkModal, saveLink, deleteLink, closeLinkModal } from './js/links.js';
-import { renderKanban, openKanbanModal, saveKanbanModal, closeKanbanModal, deleteKanbanCard } from './js/kanban.js';
+import { renderKanban, openKanbanModal, saveKanbanModal, closeKanbanModal, deleteKanbanCard, setKanbanSearchQuery } from './js/kanban.js';
 import { fetchNews, renderNewsFeedsSettings, updateRestoreNewsVisibility } from './js/news.js';
 import { checkAuth, openCalendarSettings, requestCalendarPermission, loadCachedEvents } from './js/calendar.js';
 import { toggleFocusMode, createCustomSelect, getIsFocusMode } from './js/ui.js';
@@ -39,6 +39,12 @@ async function init() {
 
     setInterval(fetchWeather, 30 * 60 * 1000);
     setInterval(updateExchangeRates, 6 * 60 * 60 * 1000);
+
+    // Midnight rollover listener
+    window.addEventListener('wolfhome:daychange', () => {
+        checkAuth();
+        fetchWeather();
+    });
 
     // Initial renders
     renderLinks();
@@ -175,6 +181,7 @@ function setupEventListeners() {
             document.getElementById('setting-new-tab').checked = config.openInNewTab !== false;
             document.getElementById('setting-show-seconds').checked = config.showSeconds !== false;
             document.getElementById('setting-show-namedays').checked = config.showNamedays !== false;
+            document.getElementById('setting-show-link-tooltips').checked = config.showLinkTooltips === true;
             document.getElementById('setting-border-radius').value = config.iconBorderRadius ?? 12;
             document.getElementById('setting-kreta-url').value = config.kretaUrl || '';
 
@@ -416,6 +423,12 @@ function setupEventListeners() {
         loadCachedEvents();
     });
 
+    document.getElementById('setting-show-link-tooltips')?.addEventListener('change', (e) => {
+        config.showLinkTooltips = e.target.checked;
+        saveConfig();
+        renderLinks();
+    });
+
     document.getElementById('add-calendar-btn')?.addEventListener('click', async () => {
         const nameEl = document.getElementById('new-calendar-name');
         const urlEl = document.getElementById('new-calendar-url');
@@ -537,6 +550,9 @@ function setupEventListeners() {
     updateViewUI();
 
     // Kanban Actions & Modal Listeners
+    document.getElementById('kanban-search-input')?.addEventListener('input', (e) => {
+        setKanbanSearchQuery(e.target.value);
+    });
     document.getElementById('add-kanban-card-btn')?.addEventListener('click', () => openKanbanModal());
     document.getElementById('close-kanban-modal-btn')?.addEventListener('click', closeKanbanModal);
     document.getElementById('save-kanban-modal-btn')?.addEventListener('click', saveKanbanModal);

@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG = {
     openInNewTab: true,
     showSeconds: true,
     showNamedays: true,
+    showLinkTooltips: false,
     iconBorderRadius: 12,
     accentColor: '#24a66e',
     bgType: 'none',

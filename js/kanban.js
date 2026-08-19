@@ -9,6 +9,12 @@ import { tag, createLucideIcon } from './utils.js';
  */
 let activeEditingCardId = null;
 let activeEditingColId = 'todo';
+let kanbanFilterQuery = '';
+
+export function setKanbanSearchQuery(query) {
+    kanbanFilterQuery = (query || '').toLowerCase().trim();
+    renderKanban();
+}
 
 const PRIORITY_CONFIG = {
     high: { label: 'Sürgős', badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
@@ -28,9 +34,13 @@ export function renderKanban() {
         if (!container) return;
         container.innerHTML = '';
 
-        const cards = config.kanban[colId] || [];
+        const allCards = config.kanban[colId] || [];
+        const cards = kanbanFilterQuery 
+            ? allCards.filter(c => (c.text || '').toLowerCase().includes(kanbanFilterQuery))
+            : allCards;
+
         if (countEl) {
-            countEl.textContent = cards.length;
+            countEl.textContent = kanbanFilterQuery ? `${cards.length}/${allCards.length}` : allCards.length;
         }
 
         cards.forEach(card => {

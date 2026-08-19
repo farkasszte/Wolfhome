@@ -83,7 +83,7 @@
 
                         <!-- 3-Day Forecast Hover Card -->
                         <div id="weather-forecast-card"
-                            class="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-80 glass p-4 rounded-2xl opacity-0 group-hover/weather:opacity-100 pointer-events-none transition-all duration-300 z-50 shadow-2xl border border-white/10 translate-y-2 group-hover/weather:translate-y-0 hidden">
+                            class="absolute right-0 top-full mt-3 w-80 p-4 rounded-2xl opacity-0 group-hover/weather:opacity-100 pointer-events-none transition-all duration-300 z-50 shadow-2xl translate-y-2 group-hover/weather:translate-y-0 hidden">
                             <div class="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
                                 <span class="text-xs font-bold text-accent uppercase tracking-wider">3 napos előrejelzés</span>
                                 <span id="forecast-city" class="text-xs text-slate-400 font-semibold uppercase"></span>
@@ -147,7 +147,12 @@
                             <i data-lucide="columns-3" class="w-7 h-7 text-accent"></i>
                             Kanban Tábla
                         </h2>
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <input type="text" id="kanban-search-input" placeholder="Keresés a feladatok között..." 
+                                    class="pl-9 pr-3 py-2 text-xs rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:border-accent focus:bg-white/10 w-48 sm:w-64 transition-all">
+                                <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                            </div>
                             <button id="add-kanban-card-btn"
                                 class="flex items-center gap-2 px-4 py-2 bg-accent/20 text-accent border border-accent/30 rounded-xl hover:bg-accent/30 transition-all text-xs font-bold uppercase tracking-widest cursor-pointer">
                                 <i data-lucide="plus" class="w-4 h-4"></i> Új feladat
@@ -257,8 +262,6 @@
                                         Kezdőképernyő
                                     </h3>
 
-
-
                                     <!-- Show Groups Toggle -->
                                     <div
                                         class="flex items-center justify-between p-3 bg-black/40 rounded-2xl border border-white/5">
@@ -301,6 +304,18 @@
                                         <span class="text-sm font-medium">Névnapok megjelenítése a naptárban</span>
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="setting-show-namedays" class="sr-only peer">
+                                            <div
+                                                class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent">
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Show Link Tooltips -->
+                                    <div
+                                        class="flex items-center justify-between p-3 bg-black/40 rounded-2xl border border-white/5">
+                                        <span class="text-sm font-medium">Linkek nevének megjelenítése buborékban</span>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="setting-show-link-tooltips" class="sr-only peer">
                                             <div
                                                 class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent">
                                             </div>

@@ -139,12 +139,17 @@ export function renderLinks() {
                 ? link.iconUrl 
                 : (highResIcon || `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`);
 
-            const linkA = tag('a', {
+            const linkProps = {
                 href: link.url,
                 target: config.openInNewTab !== false ? "_blank" : "_self",
                 className: "glass glass-card group/card w-full aspect-square flex items-center justify-center transition-all duration-300 hover:scale-[1.02] active:scale-95 border border-white/5 hover:border-accent/30 relative",
                 style: `border-radius: ${config.iconBorderRadius ?? 12}px;`
-            }, [
+            };
+            if (config.showLinkTooltips) {
+                linkProps.title = link.name || hostname;
+            }
+
+            const linkA = tag('a', linkProps, [
                 tag('div', {
                     className: "flex items-center justify-center transition-transform group-hover/card:scale-110",
                 }, [

@@ -3,7 +3,9 @@
  */
 import { config } from './config.js';
 import { createLucideIcon, tag } from './utils.js';
-import { namedayDB } from './nameday-db.js';
+import { namedayDB, getNameday } from './nameday-db.js';
+
+let lastDateKey = '';
 
 /**
  * Update the clock and date display
@@ -14,6 +16,14 @@ export function updateTime() {
     if (!clockEl || !dateEl) return;
 
     const now = new Date();
+    const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    if (lastDateKey && lastDateKey !== dateKey) {
+        // Date changed while the page was running (e.g. past midnight)
+        updateNameday();
+        window.dispatchEvent(new CustomEvent('wolfhome:daychange', { detail: { date: now } }));
+    }
+    lastDateKey = dateKey;
+
     const options = { hour: '2-digit', minute: '2-digit', hour12: false };
     if (config.showSeconds !== false) options.second = '2-digit';
     
@@ -33,22 +43,21 @@ export async function updateNameday() {
     const namedayEl = document.getElementById('nameday');
     if (!namedayEl) return;
 
+    const now = new Date();
+    const localName = getNameday(now.getMonth(), now.getDate(), now.getFullYear());
+    if (localName) {
+        namedayEl.textContent = localName;
+    }
+
     try {
-        const response = await fetch('https://nameday.abalin.net/api/V2/today?country=hu');
+        const response = await fetch('https://nameday.abalin.net/api/V2/today?country=hu&timezone=Europe/Budapest');
         const data = await response.json();
         if (data && data.success && data.data && data.data.hu) {
             namedayEl.textContent = data.data.hu;
             return;
         }
-        throw new Error("API response error");
     } catch (e) {
-        console.warn("Abalin API hiba, fallback a helyi listára:", e);
-        const now = new Date();
-        const m = now.getMonth() + 1;
-        const d = now.getDate();
-        if (namedayDB[m]) {
-            namedayEl.textContent = namedayDB[m][d - 1];
-        }
+        console.warn("Abalin API nem elérhető, helyi adatbázis aktív:", e);
     }
 }
 
@@ -230,92 +239,154 @@ export function getWeatherIconName(code) {
     return 'cloud';
 }
 
-/**
- * Fetch and display weather information
- */
-export async function fetchWeather() {
+function formatStaleTime(timestamp) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    return d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderWeatherData(data, isStale = false, timestamp = 0) {
     const tempEl = document.getElementById('temp');
     const weatherDescEl = document.getElementById('weather-desc');
     const weatherIconEl = document.getElementById('weather-icon');
     const sunriseEl = document.getElementById('sunrise-time');
     const sunsetEl = document.getElementById('sunset-time');
 
+    if (!tempEl || !weatherDescEl || !data?.current_condition?.[0]) return;
+
+    const current = data.current_condition[0];
+    tempEl.textContent = `${current.temp_C} °C`;
+    const desc = getWeatherDescription(current);
+    
+    const detectedCity = config.city || data.nearest_area?.[0]?.areaName?.[0]?.value || 'Időjárás';
+    const weatherCityEl = document.getElementById('weather-city');
+    if (weatherCityEl) {
+        weatherCityEl.textContent = detectedCity;
+    }
+
+    if (isStale && timestamp) {
+        const timeStr = formatStaleTime(timestamp);
+        weatherDescEl.textContent = `${desc} ⚠️`;
+        weatherDescEl.title = `Elavult adat. Utolsó frissítés: ${timeStr}`;
+    } else {
+        weatherDescEl.textContent = desc;
+        weatherDescEl.removeAttribute('title');
+    }
+
+    const iconName = getWeatherIconName(current.weatherCode);
+    if (weatherIconEl) {
+        weatherIconEl.innerHTML = '';
+        weatherIconEl.appendChild(createLucideIcon(iconName, "w-10 h-10 text-slate-300"));
+    }
+
+    const weatherLink = document.getElementById('weather-link');
+    if (weatherLink) {
+        let targetCity = config.city;
+        if (data.nearest_area?.[0]) {
+            const area = data.nearest_area[0];
+            const lat = parseFloat(area.latitude);
+            const lon = parseFloat(area.longitude);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const CITIES = [
+                    { name: "Budapest", lat: 47.4979, lon: 19.0402 },
+                    { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
+                    { name: "Győr", lat: 47.6875, lon: 17.6504 },
+                    { name: "Miskolc", lat: 48.1035, lon: 20.7784 },
+                    { name: "Pécs", lat: 46.0727, lon: 18.2323 },
+                    { name: "Siófok", lat: 46.9062, lon: 18.0580 },
+                    { name: "Szeged", lat: 46.2530, lon: 20.1414 }
+                ];
+                let minDistance = Infinity;
+                let closest = CITIES[0].name;
+                for (const city of CITIES) {
+                    const dist = Math.sqrt(Math.pow(lat - city.lat, 2) + Math.pow(lon - city.lon, 2));
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closest = city.name;
+                    }
+                }
+                targetCity = closest;
+            }
+        }
+        weatherLink.href = `https://www.idokep.hu/idojaras/${targetCity || 'Budapest'}`;
+    }
+
+    if (data.weather?.[0]?.astronomy?.[0]) {
+        const astro = data.weather[0].astronomy[0];
+        const to24h = (timeStr) => {
+            if (!timeStr) return "--:--";
+            const [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':');
+            if (hours === '12') hours = '00';
+            if (modifier && modifier.toUpperCase() === 'PM') hours = (parseInt(hours, 10) + 12).toString();
+            return `${hours.padStart(2, '0')}:${minutes}`;
+        };
+        if (sunriseEl) sunriseEl.textContent = to24h(astro.sunrise);
+        if (sunsetEl) sunsetEl.textContent = to24h(astro.sunset);
+    }
+
+    // Render 3-Day Forecast Tooltip
+    if (data.weather) {
+        renderForecast(data.weather, detectedCity);
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+}
+
+/**
+ * Fetch and display weather information
+ */
+export async function fetchWeather() {
+    const tempEl = document.getElementById('temp');
+    const weatherDescEl = document.getElementById('weather-desc');
     if (!tempEl || !weatherDescEl) return;
+
+    // Load from cache first for instant render
+    let cached = null;
+    try {
+        const raw = localStorage.getItem('wolfhome_weather_cache');
+        if (raw) cached = JSON.parse(raw);
+    } catch (e) {
+        // ignore cache parse error
+    }
+
+    const currentCity = config.city || 'Szeged';
+    if (cached && cached.data && cached.city === currentCity) {
+        const age = Date.now() - (cached.timestamp || 0);
+        const isStale = age > 2 * 60 * 60 * 1000; // > 2 hours
+        if (age < 12 * 60 * 60 * 1000) { // < 12 hours
+            renderWeatherData(cached.data, isStale, cached.timestamp);
+        }
+    }
 
     try {
         const queryCity = config.city ? encodeURIComponent(config.city) : '';
         const response = await fetch(`https://wttr.in/${queryCity}?format=j1&lang=hu`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        const current = data.current_condition[0];
-        
-        tempEl.textContent = `${current.temp_C} °C`;
-        const desc = getWeatherDescription(current);
-        
-        const detectedCity = config.city || data.nearest_area?.[0]?.areaName?.[0]?.value || 'Időjárás';
-        const weatherCityEl = document.getElementById('weather-city');
-        if (weatherCityEl) {
-            weatherCityEl.textContent = detectedCity;
-        }
-        weatherDescEl.textContent = desc;
 
-        const iconName = getWeatherIconName(current.weatherCode);
-        weatherIconEl.innerHTML = '';
-        weatherIconEl.appendChild(createLucideIcon(iconName, "w-10 h-10 text-slate-300"));
+        // Cache fresh response
+        localStorage.setItem('wolfhome_weather_cache', JSON.stringify({
+            data,
+            timestamp: Date.now(),
+            city: currentCity
+        }));
 
-        const weatherLink = document.getElementById('weather-link');
-        if (weatherLink) {
-            let targetCity = config.city;
-            if (data.nearest_area?.[0]) {
-                const area = data.nearest_area[0];
-                const lat = parseFloat(area.latitude);
-                const lon = parseFloat(area.longitude);
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    const CITIES = [
-                        { name: "Budapest", lat: 47.4979, lon: 19.0402 },
-                        { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
-                        { name: "Győr", lat: 47.6875, lon: 17.6504 },
-                        { name: "Miskolc", lat: 48.1035, lon: 20.7784 },
-                        { name: "Pécs", lat: 46.0727, lon: 18.2323 },
-                        { name: "Siófok", lat: 46.9062, lon: 18.0580 },
-                        { name: "Szeged", lat: 46.2530, lon: 20.1414 }
-                    ];
-                    let minDistance = Infinity;
-                    let closest = CITIES[0].name;
-                    for (const city of CITIES) {
-                        const dist = Math.sqrt(Math.pow(lat - city.lat, 2) + Math.pow(lon - city.lon, 2));
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closest = city.name;
-                        }
-                    }
-                    targetCity = closest;
-                }
-            }
-            weatherLink.href = `https://www.idokep.hu/idojaras/${targetCity || 'Budapest'}`;
-        }
-
-        if (data.weather?.[0]?.astronomy?.[0]) {
-            const astro = data.weather[0].astronomy[0];
-            const to24h = (timeStr) => {
-                if (!timeStr) return "--:--";
-                const [time, modifier] = timeStr.split(' ');
-                let [hours, minutes] = time.split(':');
-                if (hours === '12') hours = '00';
-                if (modifier && modifier.toUpperCase() === 'PM') hours = (parseInt(hours, 10) + 12).toString();
-                return `${hours.padStart(2, '0')}:${minutes}`;
-            };
-            if (sunriseEl) sunriseEl.textContent = to24h(astro.sunrise);
-            if (sunsetEl) sunsetEl.textContent = to24h(astro.sunset);
-        }
-
-        // Render 3-Day Forecast Tooltip
-        renderForecast(data.weather, detectedCity);
-
-        if (window.lucide) window.lucide.createIcons();
+        renderWeatherData(data, false);
     } catch (error) {
+        console.warn("Időjárás frissítés sikertelen:", error);
+        if (cached && cached.data && cached.city === currentCity) {
+            const age = Date.now() - (cached.timestamp || 0);
+            if (age < 12 * 60 * 60 * 1000) {
+                renderWeatherData(cached.data, true, cached.timestamp);
+                return;
+            }
+        }
         if (tempEl) tempEl.textContent = "-- °C";
-        if (weatherDescEl) weatherDescEl.textContent = "Időjárás nem elérhető";
-        console.error("Időjárás hiba:", error);
+        if (weatherDescEl) {
+            weatherDescEl.textContent = "Időjárás nem elérhető";
+            weatherDescEl.removeAttribute('title');
+        }
     }
 }
 
@@ -345,6 +416,9 @@ function renderForecast(weatherDays, cityName) {
         const iconName = getWeatherIconName(code);
         const desc = getWeatherDescription(middayHourly);
 
+        const rainChance = Math.max(...(day.hourly || []).map(h => parseInt(h.chanceofrain || 0, 10)), 0);
+        const maxWind = Math.max(...(day.hourly || []).map(h => parseInt(h.windspeedKmph || 0, 10)), 0);
+
         const col = tag('div', { className: "flex flex-col items-center p-2 rounded-xl bg-white/[0.03] border border-white/[0.05]" }, [
             tag('span', { className: "text-xs font-bold uppercase tracking-wider text-slate-400 mb-1", textContent: dayName }),
             tag('div', { className: "my-1 flex items-center justify-center text-slate-300" }, [
@@ -354,13 +428,24 @@ function renderForecast(weatherDays, cityName) {
                 tag('span', { className: "font-bold text-accent", textContent: `${day.maxtempC}°` }),
                 tag('span', { className: "text-slate-500 text-xs", textContent: `${day.mintempC}°` })
             ]),
-            tag('span', { className: "text-xs text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc })
+            tag('span', { className: "text-xs text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc }),
+            tag('div', { className: "flex items-center justify-center gap-2 mt-2 pt-1.5 border-t border-white/5 text-[11px] text-slate-400 w-full" }, [
+                tag('div', { className: "flex items-center gap-0.5", title: "Csapadék valószínűsége" }, [
+                    createLucideIcon('umbrella', "w-3 h-3 text-blue-400"),
+                    tag('span', { textContent: `${rainChance}%` })
+                ]),
+                tag('div', { className: "flex items-center gap-0.5", title: "Várható maximális szélsebesség" }, [
+                    createLucideIcon('wind', "w-3 h-3 text-slate-400"),
+                    tag('span', { textContent: `${maxWind}km/h` })
+                ])
+            ])
         ]);
 
         daysContainer.appendChild(col);
     });
 
     card.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
 }
 
 /**
@@ -369,19 +454,53 @@ function renderForecast(weatherDays, cityName) {
 export async function updateExchangeRates() {
     const eurEl = document.getElementById('eur-rate');
     const usdEl = document.getElementById('usd-rate');
+    const ratesContainer = eurEl?.closest('a');
     if (!eurEl || !usdEl) return;
+
+    // Load from cache first
+    let cached = null;
+    try {
+        const raw = localStorage.getItem('wolfhome_rates_cache');
+        if (raw) cached = JSON.parse(raw);
+    } catch (e) {
+        // ignore
+    }
+
+    if (cached && cached.eur && cached.usd) {
+        eurEl.textContent = cached.eur;
+        usdEl.textContent = cached.usd;
+    }
 
     try {
         const response = await fetch('https://open.er-api.com/v6/latest/HUF');
         const data = await response.json();
         if (data && data.result === 'success' && data.rates) {
-            const eurToHuf = 1 / data.rates.EUR;
-            const usdToHuf = 1 / data.rates.USD;
-            eurEl.textContent = eurToHuf.toFixed(1);
-            usdEl.textContent = usdToHuf.toFixed(1);
+            const eurToHuf = (1 / data.rates.EUR).toFixed(1);
+            const usdToHuf = (1 / data.rates.USD).toFixed(1);
+            eurEl.textContent = eurToHuf;
+            usdEl.textContent = usdToHuf;
+            if (ratesContainer) ratesContainer.removeAttribute('title');
+
+            localStorage.setItem('wolfhome_rates_cache', JSON.stringify({
+                eur: eurToHuf,
+                usd: usdToHuf,
+                timestamp: Date.now()
+            }));
+            return;
         }
+        throw new Error("API invalid response");
     } catch (error) {
+        console.warn("Árfolyam frissítés hiba:", error);
+        if (cached && cached.eur && cached.usd) {
+            const age = Date.now() - (cached.timestamp || 0);
+            if (age < 24 * 60 * 60 * 1000) {
+                const timeStr = formatStaleTime(cached.timestamp);
+                if (ratesContainer) ratesContainer.title = `Elavult árfolyam. Utolsó adat: ${timeStr}`;
+                return;
+            }
+        }
         eurEl.textContent = "---";
         usdEl.textContent = "---";
+        if (ratesContainer) ratesContainer.removeAttribute('title');
     }
 }

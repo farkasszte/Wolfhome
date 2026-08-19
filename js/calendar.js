@@ -3,14 +3,8 @@
  */
 import { config, saveConfig } from './config.js';
 import { tag, createLucideIcon, extAPI } from './utils.js';
-import { namedayDB } from './nameday-db.js';
-
-let currentViewDate = new Date();
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
-
-export function getNameday(month, day) {
-    return namedayDB[month + 1] ? namedayDB[month + 1][day - 1] : "";
-}
+import { namedayDB, getNameday } from './nameday-db.js';
+export { getNameday };
 
 export function loadCachedEvents() {
     try {
@@ -611,7 +605,7 @@ export function renderCalendarGrid(events, isOffline = false) {
         const cellHeaderChildren = [dayNumber];
 
         if (config.showNamedays !== false) {
-            const nameDayText = getNameday(currentDate.getMonth(), currentDate.getDate());
+            const nameDayText = getNameday(currentDate.getMonth(), currentDate.getDate(), currentDate.getFullYear());
             if (nameDayText) {
                 cellHeaderChildren.push(tag('span', {
                     className: "text-xs text-slate-600 font-medium ml-auto select-none truncate max-w-[70%]",

@@ -109,7 +109,8 @@ export function renderNews(articles) {
                 tag('img', {
                     src: imageUrl,
                     className: 'news-card-img',
-                    loading: 'lazy'
+                    loading: 'lazy',
+                    onerror: (e) => { e.target.style.display = 'none'; }
                 }) :
                 (config.showNewsImages !== false ? tag('div', { className: 'news-card-img flex items-center justify-center opacity-20' }, [
                     createLucideIcon('image', 'w-8 h-8')
