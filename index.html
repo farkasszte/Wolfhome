@@ -18,8 +18,8 @@
         <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
             <!-- Top Row: Header (9) and Controls (3) - Synced Height -->
-            <div class="xl:col-span-9">
-                <header class="glass rounded-3xl p-4 flex flex-row items-center justify-center px-6 h-full">
+            <div class="xl:col-span-9 relative z-30">
+                <header class="glass rounded-3xl p-4 flex flex-row items-center justify-center px-6 h-full relative z-30">
                     <div class="flex items-center gap-6">
                         <a href="https://www.timeanddate.com/worldclock/converter.html?iso=20260503T064500&p1=50&p2=137&p3=33"
                             target="_blank" class="flex flex-col items-center">
@@ -53,7 +53,7 @@
                         </a>
                     </div>
 
-                    <div class="relative group/weather flex items-center border-l border-white/10 pl-6">
+                    <div class="relative group/weather flex items-center border-l border-white/10 pl-6 z-30">
                         <a href="https://www.idokep.hu/idojaras/Szeged" target="_blank" id="weather-link"
                             class="flex items-center gap-4 cursor-pointer">
                             <div id="weather-icon"></div>
@@ -86,7 +86,7 @@
                             class="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-80 glass p-4 rounded-2xl opacity-0 group-hover/weather:opacity-100 pointer-events-none transition-all duration-300 z-50 shadow-2xl border border-white/10 translate-y-2 group-hover/weather:translate-y-0 hidden">
                             <div class="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
                                 <span class="text-xs font-bold text-accent uppercase tracking-wider">3 napos előrejelzés</span>
-                                <span id="forecast-city" class="text-[11px] text-slate-400 font-semibold uppercase"></span>
+                                <span id="forecast-city" class="text-xs text-slate-400 font-semibold uppercase"></span>
                             </div>
                             <div id="forecast-days" class="grid grid-cols-3 gap-2 text-center">
                                 <!-- Populated dynamically -->

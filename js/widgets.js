@@ -52,17 +52,181 @@ export async function updateNameday() {
     }
 }
 
+const WEATHER_TRANSLATIONS = {
+    // WWO codes
+    113: 'Derült, napos',
+    116: 'Változóan felhős',
+    119: 'Felhős',
+    122: 'Borult',
+    143: 'Párás',
+    176: 'Helyenként eső',
+    179: 'Helyenként havazás',
+    182: 'Helyenként havas eső',
+    185: 'Helyenként ónos szitálás',
+    200: 'Zivatar lehetséges',
+    227: 'Hófúvás',
+    230: 'Hóvihar',
+    248: 'Köd',
+    260: 'Fagyos köd',
+    263: 'Helyenként szitálás',
+    266: 'Gyenge szitálás',
+    281: 'Ónos szitálás',
+    284: 'Erős ónos szitálás',
+    293: 'Helyenként gyenge eső',
+    296: 'Gyenge eső',
+    299: 'Időnként mérsékelt eső',
+    302: 'Mérsékelt eső',
+    305: 'Időnként heves eső',
+    308: 'Heves esőzés',
+    311: 'Gyenge ónos eső',
+    314: 'Mérsékelt vagy heves ónos eső',
+    317: 'Gyenge havas eső',
+    320: 'Mérsékelt vagy heves havas eső',
+    323: 'Helyenként gyenge havazás',
+    326: 'Gyenge havazás',
+    329: 'Helyenként mérsékelt havazás',
+    332: 'Mérsékelt havazás',
+    335: 'Helyenként heves havazás',
+    338: 'Heves havazás',
+    350: 'Jégdara',
+    353: 'Gyenge zápor',
+    356: 'Záporeső',
+    359: 'Felhőszakadás',
+    362: 'Gyenge havas zápor',
+    365: 'Havas zápor',
+    368: 'Gyenge hózápor',
+    371: 'Hózápor',
+    374: 'Gyenge jégdara zápor',
+    377: 'Jégdara zápor',
+    386: 'Helyenként zivatar',
+    389: 'Zivatar, viharos eső',
+    392: 'Helyenként hózivatar',
+    395: 'Heves hózivatar',
+
+    // WMO standard codes
+    0: 'Derült égbolt',
+    1: 'Túlnyomóan derült',
+    2: 'Változóan felhős',
+    3: 'Borult',
+    45: 'Köd',
+    48: 'Zúzmarás köd',
+    51: 'Gyenge szitálás',
+    53: 'Mérsékelt szitálás',
+    55: 'Sűrű szitálás',
+    56: 'Gyenge ónos szitálás',
+    57: 'Sűrű ónos szitálás',
+    61: 'Gyenge eső',
+    63: 'Mérsékelt eső',
+    65: 'Heves eső',
+    66: 'Gyenge ónos eső',
+    67: 'Heves ónos eső',
+    71: 'Gyenge havazás',
+    73: 'Mérsékelt havazás',
+    75: 'Heves havazás',
+    77: 'Hószemcsék',
+    80: 'Gyenge zápor',
+    81: 'Mérsékelt zápor',
+    82: 'Heves zápor',
+    85: 'Gyenge hózápor',
+    86: 'Heves hózápor',
+    95: 'Zivatar',
+    96: 'Zivatar jégdarával',
+    99: 'Heves zivatar jégdarával'
+};
+
+const WEATHER_TEXT_TRANSLATIONS = {
+    'clear': 'Derült, tiszta',
+    'sunny': 'Napos',
+    'partly cloudy': 'Változóan felhős',
+    'cloudy': 'Felhős',
+    'overcast': 'Borult',
+    'mist': 'Párás',
+    'fog': 'Köd',
+    'freezing fog': 'Fagyos köd',
+    'patchy rain possible': 'Helyenként eső lehetséges',
+    'patchy rain nearby': 'Helyenként eső a közelben',
+    'patchy snow possible': 'Helyenként havazás lehetséges',
+    'patchy snow nearby': 'Helyenként havazás a közelben',
+    'patchy sleet possible': 'Helyenként havas eső lehetséges',
+    'patchy sleet nearby': 'Helyenként havas eső a közelben',
+    'patchy freezing drizzle possible': 'Helyenként ónos szitálás lehetséges',
+    'patchy freezing drizzle nearby': 'Helyenként ónos szitálás a közelben',
+    'thundery outbreaks possible': 'Zivatar lehetséges',
+    'thundery outbreaks nearby': 'Zivatar a közelben',
+    'blowing snow': 'Hófúvás',
+    'blizzard': 'Hóvihar',
+    'patchy light drizzle': 'Helyenként gyenge szitálás',
+    'light drizzle': 'Gyenge szitálás',
+    'freezing drizzle': 'Ónos szitálás',
+    'heavy freezing drizzle': 'Erős ónos szitálás',
+    'patchy light rain': 'Helyenként gyenge eső',
+    'light rain': 'Gyenge eső',
+    'moderate rain at times': 'Időnként mérsékelt eső',
+    'moderate rain': 'Mérsékelt eső',
+    'heavy rain at times': 'Időnként heves eső',
+    'heavy rain': 'Heves esőzés',
+    'light freezing rain': 'Gyenge ónos eső',
+    'moderate or heavy freezing rain': 'Mérsékelt vagy heves ónos eső',
+    'light sleet': 'Gyenge havas eső',
+    'moderate or heavy sleet': 'Mérsékelt vagy heves havas eső',
+    'patchy light snow': 'Helyenként gyenge havazás',
+    'light snow': 'Gyenge havazás',
+    'patchy moderate snow': 'Helyenként mérsékelt havazás',
+    'moderate snow': 'Mérsékelt havazás',
+    'patchy heavy snow': 'Helyenként heves havazás',
+    'heavy snow': 'Heves havazás',
+    'ice pellets': 'Jégdara',
+    'light rain shower': 'Gyenge zápor',
+    'moderate or heavy rain shower': 'Záporeső',
+    'torrential rain shower': 'Felhőszakadás',
+    'light sleet showers': 'Gyenge havas zápor',
+    'moderate or heavy sleet showers': 'Havas zápor',
+    'light snow showers': 'Gyenge hózápor',
+    'moderate or heavy snow showers': 'Hózápor',
+    'light showers of ice pellets': 'Gyenge jégdara zápor',
+    'moderate or heavy showers of ice pellets': 'Jégdara zápor',
+    'patchy light rain with thunder': 'Helyenként zivatar',
+    'moderate or heavy rain with thunder': 'Zivatar, viharos eső',
+    'patchy light snow with thunder': 'Helyenként hózivatar',
+    'moderate or heavy snow with thunder': 'Heves hózivatar'
+};
+
+export function getWeatherDescription(item) {
+    if (!item) return '';
+    const code = parseInt(item.weatherCode, 10);
+    const huFromApi = item.lang_hu?.[0]?.value?.trim();
+    const enDesc = item.weatherDesc?.[0]?.value?.trim() || '';
+
+    // Prefer code mapping for uniform, accurate Hungarian names
+    if (!isNaN(code) && WEATHER_TRANSLATIONS[code]) {
+        return WEATHER_TRANSLATIONS[code];
+    }
+
+    // Check english text translation mapping
+    const rawText = (huFromApi || enDesc).toLowerCase().trim();
+    if (rawText && WEATHER_TEXT_TRANSLATIONS[rawText]) {
+        return WEATHER_TEXT_TRANSLATIONS[rawText];
+    }
+
+    // Check if API provided Hungarian text that is not identical to English
+    if (huFromApi && huFromApi !== enDesc) {
+        return huFromApi;
+    }
+
+    return enDesc || huFromApi || 'Változékony';
+}
+
 export function getWeatherIconName(code) {
     const c = parseInt(code, 10);
-    if (c === 113) return 'sun';
-    if (c === 116) return 'cloud-sun';
-    if (c === 119 || c === 122) return 'cloud';
-    if ([143, 248, 260].includes(c)) return 'cloud-fog';
-    if ([176, 263, 266, 293, 296, 299, 302, 305, 308].includes(c)) return 'cloud-rain';
-    if ([179, 182, 185, 281, 284, 311, 314, 317, 350, 377].includes(c)) return 'cloud-hail';
-    if ([200, 386, 389, 392, 395].includes(c)) return 'cloud-lightning';
-    if ([227, 230, 323, 326, 329, 332, 335, 338, 368, 371, 374].includes(c)) return 'snowflake';
-    if ([353, 356, 359, 362, 365].includes(c)) return 'cloud-drizzle';
+    if (c === 113 || c === 0 || c === 1) return 'sun';
+    if (c === 116 || c === 2) return 'cloud-sun';
+    if (c === 119 || c === 122 || c === 3) return 'cloud';
+    if ([143, 248, 260, 45, 48].includes(c)) return 'cloud-fog';
+    if ([176, 263, 266, 293, 296, 299, 302, 305, 308, 51, 53, 55, 61, 63, 65].includes(c)) return 'cloud-rain';
+    if ([179, 182, 185, 281, 284, 311, 314, 317, 320, 350, 374, 377, 56, 57, 66, 67].includes(c)) return 'cloud-hail';
+    if ([200, 386, 389, 392, 395, 95, 96, 99].includes(c)) return 'cloud-lightning';
+    if ([227, 230, 323, 326, 329, 332, 335, 338, 368, 371, 71, 73, 75, 77, 85, 86].includes(c)) return 'snowflake';
+    if ([353, 356, 359, 362, 365, 80, 81, 82].includes(c)) return 'cloud-drizzle';
     return 'cloud';
 }
 
@@ -85,7 +249,7 @@ export async function fetchWeather() {
         const current = data.current_condition[0];
         
         tempEl.textContent = `${current.temp_C} °C`;
-        const desc = current.lang_hu?.[0]?.value || current.weatherDesc[0].value;
+        const desc = getWeatherDescription(current);
         
         const detectedCity = config.city || data.nearest_area?.[0]?.areaName?.[0]?.value || 'Időjárás';
         const weatherCityEl = document.getElementById('weather-city');
@@ -179,18 +343,18 @@ function renderForecast(weatherDays, cityName) {
         const middayHourly = day.hourly?.[4] || day.hourly?.[Math.floor(day.hourly.length / 2)] || {};
         const code = middayHourly.weatherCode || day.hourly?.[0]?.weatherCode || '119';
         const iconName = getWeatherIconName(code);
-        const desc = middayHourly.lang_hu?.[0]?.value || middayHourly.weatherDesc?.[0]?.value || '';
+        const desc = getWeatherDescription(middayHourly);
 
         const col = tag('div', { className: "flex flex-col items-center p-2 rounded-xl bg-white/[0.03] border border-white/[0.05]" }, [
-            tag('span', { className: "text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1", textContent: dayName }),
+            tag('span', { className: "text-xs font-bold uppercase tracking-wider text-slate-400 mb-1", textContent: dayName }),
             tag('div', { className: "my-1 flex items-center justify-center text-slate-300" }, [
                 createLucideIcon(iconName, "w-6 h-6")
             ]),
             tag('div', { className: "flex items-baseline gap-1 mt-1 text-xs" }, [
                 tag('span', { className: "font-bold text-accent", textContent: `${day.maxtempC}°` }),
-                tag('span', { className: "text-slate-500 text-[10px]", textContent: `${day.mintempC}°` })
+                tag('span', { className: "text-slate-500 text-xs", textContent: `${day.mintempC}°` })
             ]),
-            tag('span', { className: "text-[10px] text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc })
+            tag('span', { className: "text-xs text-slate-400 leading-tight mt-1 line-clamp-2 text-center", textContent: desc, title: desc })
         ]);
 
         daysContainer.appendChild(col);
