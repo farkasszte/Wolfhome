@@ -2,11 +2,12 @@
  * WolfHome Links Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon } from './utils.js';
+import { tag, createLucideIcon, refreshLucideIcons } from './utils.js';
 
 let editingSIndex = -1;
 let editingLIndex = -1;
 let csIconType = null; // Reference to custom select
+let linksSortableInstances = [];
 
 /**
  * Get high-resolution icon from CDN for popular/Google services
@@ -101,6 +102,12 @@ export function renderLinks() {
         lockBtn.className = `p-2 rounded-full transition-colors ${isLocked ? 'text-slate-500 hover:bg-white/5' : 'text-accent bg-accent/10 hover:bg-accent/20'}`;
     }
 
+    // Clean up previous Sortable instances to prevent memory leaks
+    linksSortableInstances.forEach(inst => {
+        try { inst.destroy(); } catch (e) { }
+    });
+    linksSortableInstances = [];
+
     config.sections.forEach((section, sIndex) => {
         const isCollapsed = section.collapsed || false;
         const grid = tag('div', {
@@ -193,7 +200,7 @@ export function renderLinks() {
         linksGrid.appendChild(sectionDiv);
         
         if (window.Sortable) {
-            new window.Sortable(grid, {
+            const s = new window.Sortable(grid, {
                 group: 'links', animation: 150, disabled: isLocked, draggable: '.link-item',
                 onEnd: (evt) => {
                     const fromSIndex = parseInt(evt.from.id.replace('section-grid-', ''));
@@ -203,6 +210,7 @@ export function renderLinks() {
                     saveConfig();
                 }
             });
+            linksSortableInstances.push(s);
         }
     });
 
@@ -219,7 +227,7 @@ export function renderLinks() {
     }
 
     if (window.Sortable) {
-        new window.Sortable(linksGrid, {
+        const sGrid = new window.Sortable(linksGrid, {
             animation: 150, disabled: isLocked, handle: '.section-header', draggable: '.section-container',
             onEnd: () => {
                 const newOrder = [];
@@ -229,8 +237,9 @@ export function renderLinks() {
                 renderLinks();
             }
         });
+        linksSortableInstances.push(sGrid);
     }
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**

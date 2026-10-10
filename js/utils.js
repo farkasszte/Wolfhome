@@ -70,3 +70,17 @@ export function compressImage(dataUrl, maxWidth = 1920, maxHeight = 1080, qualit
     });
 }
 
+let lucideDebounceTimer = null;
+/**
+ * Debounced refresh for Lucide icons across the whole document
+ */
+export function refreshLucideIcons() {
+    if (!window.lucide) return;
+    if (lucideDebounceTimer) cancelAnimationFrame(lucideDebounceTimer);
+    lucideDebounceTimer = requestAnimationFrame(() => {
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    });
+}
+

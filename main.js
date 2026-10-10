@@ -1,7 +1,7 @@
 /**
  * WolfHome Main Entry Point
  */
-import { config, loadConfig, saveConfig } from './js/config.js';
+import { config, loadConfig, saveConfig, debouncedSaveConfig } from './js/config.js';
 import { updateBackground, debouncedBgUpdate, updateBackgroundActionsVisibility } from './js/background.js';
 import { updateTime, updateNameday, fetchWeather, updateExchangeRates } from './js/widgets.js';
 import { renderLinks, showLinkModal, saveLink, deleteLink, closeLinkModal } from './js/links.js';
@@ -10,10 +10,22 @@ import { fetchNews, renderNewsFeedsSettings, updateRestoreNewsVisibility } from 
 import { checkAuth, openCalendarSettings, requestCalendarPermission, loadCachedEvents } from './js/calendar.js';
 import { toggleFocusMode, createCustomSelect, getIsFocusMode } from './js/ui.js';
 import { checkExtensionEnvironment, exportConfig, importConfig } from './js/storage-actions.js';
-import { compressImage, createLucideIcon, tag } from './js/utils.js';
+import { compressImage, createLucideIcon, tag, refreshLucideIcons } from './js/utils.js';
 
 let originalConfig = null;
 let csIconType = null;
+let csBgType = null;
+let csBgFit = null;
+let csBgRefresh = null;
+
+function applyAccentColor(hex) {
+    if (!hex) return;
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (result) {
+        document.documentElement.style.setProperty('--accent', hex);
+        document.documentElement.style.setProperty('--accent-rgb', `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`);
+    }
+}
 
 async function init() {
     document.documentElement.classList.add('dark');
@@ -21,12 +33,7 @@ async function init() {
     await loadConfig();
 
     if (config.accentColor) {
-        const hex = config.accentColor;
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (result) {
-            document.documentElement.style.setProperty('--accent', hex);
-            document.documentElement.style.setProperty('--accent-rgb', `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`);
-        }
+        applyAccentColor(config.accentColor);
     }
 
     // Start timers
@@ -68,6 +75,11 @@ async function init() {
     // Setup remaining UI
     setupEventListeners();
     checkExtensionEnvironment();
+
+    // If initial view is settings, ensure fields are filled
+    if (config.currentView === 'settings') {
+        populateSettingsForm();
+    }
 }
 
 function renderCalendarsSettings() {
@@ -87,7 +99,7 @@ function renderCalendarsSettings() {
                 tag('div', { className: 'w-3 h-3 rounded-full shrink-0 shadow-sm', style: `background-color: ${cal.color || 'var(--accent)'};` }),
                 tag('div', { className: 'flex flex-col min-w-0' }, [
                     tag('span', { className: 'text-xs font-bold text-white truncate', textContent: cal.name || 'Névtelen naptár' }),
-                    tag('span', { className: 'text-[11px] text-slate-500 truncate', textContent: cal.url })
+                    tag('span', { className: 'text-xs text-slate-500 truncate', textContent: cal.url })
                 ])
             ]),
             tag('button', {
@@ -103,7 +115,54 @@ function renderCalendarsSettings() {
         ]);
         list.appendChild(item);
     });
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
+}
+
+function populateSettingsForm() {
+    const elAccent = document.getElementById('setting-accent-color');
+    if (!elAccent) return;
+
+    elAccent.value = config.accentColor || '#24a66e';
+    document.getElementById('setting-city').value = config.city || 'Szeged';
+    document.getElementById('setting-show-groups').checked = config.showGroups !== false;
+    document.getElementById('setting-new-tab').checked = config.openInNewTab !== false;
+    document.getElementById('setting-show-seconds').checked = config.showSeconds !== false;
+    document.getElementById('setting-show-namedays').checked = config.showNamedays !== false;
+    document.getElementById('setting-show-link-tooltips').checked = config.showLinkTooltips === true;
+    document.getElementById('setting-border-radius').value = config.iconBorderRadius ?? 12;
+    document.getElementById('setting-kreta-url').value = config.kretaUrl || '';
+
+    document.getElementById('setting-bg-type').value = config.bgType || 'none';
+    document.getElementById('setting-bg-color').value = config.bgColor || '#000000';
+    document.getElementById('setting-bg-unsplash').value = config.bgUnsplashQuery || 'nature';
+    document.getElementById('setting-bg-fit').value = config.bgFitMode || 'cover';
+    document.getElementById('setting-bg-refresh').value = config.bgRefreshFreq || 'load';
+    document.getElementById('setting-bg-brightness').value = config.bgBrightness ?? 0;
+    document.getElementById('brightness-display').textContent = `${config.bgBrightness ?? 0}%`;
+    document.getElementById('setting-bg-blur').value = config.bgBlur ?? 0;
+    document.getElementById('blur-display').textContent = `${config.bgBlur ?? 0}px`;
+
+    document.getElementById('setting-bg-gradient-1').value = config.bgGradientStart || '#1a2a6c';
+    document.getElementById('setting-bg-gradient-2').value = config.bgGradientEnd || '#b21f1f';
+    document.getElementById('setting-bg-gradient-angle').value = config.bgGradientAngle || 135;
+    document.getElementById('angle-display').textContent = `${config.bgGradientAngle || 135}°`;
+
+    document.getElementById('setting-news-images').checked = config.showNewsImages !== false;
+    document.getElementById('setting-news-count').value = config.newsCount || 15;
+    document.getElementById('news-count-display').textContent = config.newsCount || 15;
+
+    // Sync custom dropdown triggers
+    csBgType?.sync();
+    csBgFit?.sync();
+    csBgRefresh?.sync();
+
+    updateSettingsVisibility();
+    renderCalendarsSettings();
+    renderNewsFeedsSettings();
+    updateRestoreNewsVisibility();
+    if (!originalConfig) {
+        originalConfig = JSON.parse(JSON.stringify(config));
+    }
 }
 
 function setupEventListeners() {
@@ -153,9 +212,9 @@ function setupEventListeners() {
 
     if (settingsBtn && settingsContent) {
         // Build custom dropdowns once
-        const csType = createCustomSelect('setting-bg-type');
-        const csFit = createCustomSelect('setting-bg-fit');
-        const csRefresh = createCustomSelect('setting-bg-refresh');
+        csBgType = createCustomSelect('setting-bg-type');
+        csBgFit = createCustomSelect('setting-bg-fit');
+        csBgRefresh = createCustomSelect('setting-bg-refresh');
 
         // Tab Switching Logic
         const tabBtns = document.querySelectorAll('.settings-tab-btn');
@@ -174,45 +233,7 @@ function setupEventListeners() {
         });
 
         settingsBtn.addEventListener('click', () => {
-            // Fill settings fields
-            document.getElementById('setting-accent-color').value = config.accentColor || '#24a66e';
-            document.getElementById('setting-city').value = config.city || 'Szeged';
-            document.getElementById('setting-show-groups').checked = config.showGroups !== false;
-            document.getElementById('setting-new-tab').checked = config.openInNewTab !== false;
-            document.getElementById('setting-show-seconds').checked = config.showSeconds !== false;
-            document.getElementById('setting-show-namedays').checked = config.showNamedays !== false;
-            document.getElementById('setting-show-link-tooltips').checked = config.showLinkTooltips === true;
-            document.getElementById('setting-border-radius').value = config.iconBorderRadius ?? 12;
-            document.getElementById('setting-kreta-url').value = config.kretaUrl || '';
-
-            document.getElementById('setting-bg-type').value = config.bgType || 'none';
-            document.getElementById('setting-bg-color').value = config.bgColor || '#000000';
-            document.getElementById('setting-bg-unsplash').value = config.bgUnsplashQuery || 'nature';
-            document.getElementById('setting-bg-fit').value = config.bgFitMode || 'cover';
-            document.getElementById('setting-bg-refresh').value = config.bgRefreshFreq || 'load';
-            document.getElementById('setting-bg-brightness').value = config.bgBrightness ?? 0;
-            document.getElementById('brightness-display').textContent = `${config.bgBrightness ?? 0}%`;
-            document.getElementById('setting-bg-blur').value = config.bgBlur ?? 0;
-            document.getElementById('blur-display').textContent = `${config.bgBlur ?? 0}px`;
-
-            document.getElementById('setting-bg-gradient-1').value = config.bgGradientStart || '#1a2a6c';
-            document.getElementById('setting-bg-gradient-2').value = config.bgGradientEnd || '#b21f1f';
-            document.getElementById('setting-bg-gradient-angle').value = config.bgGradientAngle || 135;
-            document.getElementById('angle-display').textContent = `${config.bgGradientAngle || 135}°`;
-
-            document.getElementById('setting-news-images').checked = config.showNewsImages !== false;
-            document.getElementById('setting-news-count').value = config.newsCount || 15;
-            document.getElementById('news-count-display').textContent = config.newsCount || 15;
-
-            // Sync triggers
-            csType?.sync();
-            csFit?.sync();
-            csRefresh?.sync();
-
-            updateSettingsVisibility();
-            renderCalendarsSettings();
-            renderNewsFeedsSettings();
-            updateRestoreNewsVisibility();
+            populateSettingsForm();
             originalConfig = JSON.parse(JSON.stringify(config));
             config.currentView = 'settings';
             saveConfig();
@@ -232,6 +253,7 @@ function setupEventListeners() {
             if (originalConfig) {
                 Object.assign(config, originalConfig);
                 saveConfig();
+                if (config.accentColor) applyAccentColor(config.accentColor);
                 updateBackground(true);
                 updateTime();
                 renderLinks();
@@ -352,7 +374,8 @@ function setupEventListeners() {
             if (url) {
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `wolfhome_background_${Date.now()}.png`;
+                const ext = (url.includes('image/jpeg') || url.includes('.jpg') || url.includes('.jpeg')) ? 'jpg' : 'png';
+                a.download = `wolfhome_background_${Date.now()}.${ext}`;
                 a.click();
             } else {
                 alert("Nem sikerült lekérni a háttérkép hivatkozását!");
@@ -369,6 +392,7 @@ function setupEventListeners() {
         config.bgBrightness = parseInt(e.target.value);
         document.getElementById('brightness-display').textContent = `${e.target.value}%`;
         updateBackground(false);
+        debouncedSaveConfig();
     });
     document.getElementById('setting-bg-brightness')?.addEventListener('change', () => saveConfig());
 
@@ -376,6 +400,7 @@ function setupEventListeners() {
         config.bgBlur = parseInt(e.target.value);
         document.getElementById('blur-display').textContent = `${e.target.value}px`;
         updateBackground(false);
+        debouncedSaveConfig();
     });
     document.getElementById('setting-bg-blur')?.addEventListener('change', () => saveConfig());
 
@@ -457,7 +482,9 @@ function setupEventListeners() {
     });
 
     document.getElementById('setting-border-radius')?.addEventListener('input', (e) => {
-        config.iconBorderRadius = parseInt(e.target.value); saveConfig(); renderLinks();
+        config.iconBorderRadius = parseInt(e.target.value);
+        debouncedSaveConfig();
+        renderLinks();
     });
 
     document.getElementById('setting-news-images')?.addEventListener('change', (e) => {
@@ -557,11 +584,7 @@ function setupEventListeners() {
     document.getElementById('close-kanban-modal-btn')?.addEventListener('click', closeKanbanModal);
     document.getElementById('save-kanban-modal-btn')?.addEventListener('click', saveKanbanModal);
     document.getElementById('delete-kanban-modal-btn')?.addEventListener('click', () => {
-        if (confirm("Biztosan törlöd ezt a feladatot?")) {
-            const priorityInput = document.getElementById('kanban-selected-priority');
-            // We use the active card ID in kanban.js
-            deleteKanbanCard();
-        }
+        deleteKanbanCard();
     });
 
     document.querySelectorAll('.kanban-priority-option').forEach(btn => {
@@ -573,9 +596,9 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('refresh-news-btn')?.addEventListener('click', () => fetchNews());
+    document.getElementById('refresh-news-btn')?.addEventListener('click', () => fetchNews(true));
 
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 function updateSettingsVisibility() {

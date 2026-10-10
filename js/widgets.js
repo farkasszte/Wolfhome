@@ -2,10 +2,15 @@
  * WolfHome Widgets Module
  */
 import { config } from './config.js';
-import { createLucideIcon, tag } from './utils.js';
+import { createLucideIcon, tag, refreshLucideIcons } from './utils.js';
 import { namedayDB, getNameday } from './nameday-db.js';
 
 let lastDateKey = '';
+
+// Reusable date & time formatters to avoid per-second allocations
+const timeFormatterWithSeconds = new Intl.DateTimeFormat('hu-HU', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+const timeFormatterNoSeconds = new Intl.DateTimeFormat('hu-HU', { hour: '2-digit', minute: '2-digit', hour12: false });
+const dateFormatter = new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
 /**
  * Update the clock and date display
@@ -17,23 +22,20 @@ export function updateTime() {
 
     const now = new Date();
     const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
-    if (lastDateKey && lastDateKey !== dateKey) {
-        // Date changed while the page was running (e.g. past midnight)
-        updateNameday();
-        window.dispatchEvent(new CustomEvent('wolfhome:daychange', { detail: { date: now } }));
-    }
-    lastDateKey = dateKey;
+    const dateChanged = lastDateKey !== dateKey;
 
-    const options = { hour: '2-digit', minute: '2-digit', hour12: false };
-    if (config.showSeconds !== false) options.second = '2-digit';
-    
-    clockEl.textContent = now.toLocaleTimeString('hu-HU', options);
-    dateEl.textContent = now.toLocaleDateString('hu-HU', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric', 
-        weekday: 'long' 
-    });
+    if (dateChanged) {
+        // Date changed while the page was running (or on init)
+        dateEl.textContent = dateFormatter.format(now);
+        if (lastDateKey) {
+            updateNameday();
+            window.dispatchEvent(new CustomEvent('wolfhome:daychange', { detail: { date: now } }));
+        }
+        lastDateKey = dateKey;
+    }
+
+    const formatter = config.showSeconds !== false ? timeFormatterWithSeconds : timeFormatterNoSeconds;
+    clockEl.textContent = formatter.format(now);
 }
 
 /**
@@ -51,6 +53,7 @@ export async function updateNameday() {
 
     try {
         const response = await fetch('https://nameday.abalin.net/api/V2/today?country=hu&timezone=Europe/Budapest');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (data && data.success && data.data && data.data.hu) {
             namedayEl.textContent = data.data.hu;
@@ -245,6 +248,16 @@ function formatStaleTime(timestamp) {
     return d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
 }
 
+const HUNGARIAN_CITIES = [
+    { name: "Budapest", lat: 47.4979, lon: 19.0402 },
+    { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
+    { name: "Győr", lat: 47.6875, lon: 17.6504 },
+    { name: "Miskolc", lat: 48.1035, lon: 20.7784 },
+    { name: "Pécs", lat: 46.0727, lon: 18.2323 },
+    { name: "Siófok", lat: 46.9062, lon: 18.0580 },
+    { name: "Szeged", lat: 46.2530, lon: 20.1414 }
+];
+
 function renderWeatherData(data, isStale = false, timestamp = 0) {
     const tempEl = document.getElementById('temp');
     const weatherDescEl = document.getElementById('weather-desc');
@@ -287,18 +300,9 @@ function renderWeatherData(data, isStale = false, timestamp = 0) {
             const lat = parseFloat(area.latitude);
             const lon = parseFloat(area.longitude);
             if (!isNaN(lat) && !isNaN(lon)) {
-                const CITIES = [
-                    { name: "Budapest", lat: 47.4979, lon: 19.0402 },
-                    { name: "Debrecen", lat: 47.5316, lon: 21.6273 },
-                    { name: "Győr", lat: 47.6875, lon: 17.6504 },
-                    { name: "Miskolc", lat: 48.1035, lon: 20.7784 },
-                    { name: "Pécs", lat: 46.0727, lon: 18.2323 },
-                    { name: "Siófok", lat: 46.9062, lon: 18.0580 },
-                    { name: "Szeged", lat: 46.2530, lon: 20.1414 }
-                ];
                 let minDistance = Infinity;
-                let closest = CITIES[0].name;
-                for (const city of CITIES) {
+                let closest = HUNGARIAN_CITIES[0].name;
+                for (const city of HUNGARIAN_CITIES) {
                     const dist = Math.sqrt(Math.pow(lat - city.lat, 2) + Math.pow(lon - city.lon, 2));
                     if (dist < minDistance) {
                         minDistance = dist;
@@ -330,7 +334,7 @@ function renderWeatherData(data, isStale = false, timestamp = 0) {
         renderForecast(data.weather, detectedCity);
     }
 
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**
@@ -445,7 +449,7 @@ function renderForecast(weatherDays, cityName) {
     });
 
     card.classList.remove('hidden');
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**

@@ -2,14 +2,50 @@
  * WolfHome News Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon } from './utils.js';
+import { tag, createLucideIcon, refreshLucideIcons } from './utils.js';
+
+let cachedNewsArticles = null;
+
+/**
+ * Filter and render articles using current configuration
+ */
+function filterAndRenderArticles() {
+    if (!cachedNewsArticles) return;
+
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    let closed = config.closedNews || [];
+
+    // Migrate legacy formats and filter out items older than 24h
+    closed = closed.map(item => {
+        if (typeof item === 'string') {
+            return { link: item, timestamp: now };
+        }
+        return item;
+    }).filter(item => (now - item.timestamp) < ONE_DAY);
+
+    config.closedNews = closed;
+    saveConfig();
+
+    const closedSet = new Set(closed.map(item => item.link));
+    const filteredArticles = cachedNewsArticles.filter(item => !closedSet.has(item.link));
+
+    const count = config.newsCount || 15;
+    renderNews(filteredArticles.slice(0, count));
+}
 
 /**
  * Fetch news from RSS feeds
  */
-export async function fetchNews() {
+export async function fetchNews(forceRefresh = false) {
     const grid = document.getElementById('news-grid');
     if (!grid) return;
+
+    // Use cached articles if already available and not forced
+    if (cachedNewsArticles && !forceRefresh) {
+        filterAndRenderArticles();
+        return;
+    }
 
     // Show loading state
     grid.innerHTML = '';
@@ -17,17 +53,21 @@ export async function fetchNews() {
         createLucideIcon('newspaper', 'w-16 h-16'),
         tag('p', { className: 'text-sm font-light uppercase tracking-widest', textContent: 'Hírek frissítése...' })
     ]));
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 
-    let allArticles = [];
     const feeds = config.newsFeeds || [];
+    if (!feeds.length) {
+        grid.innerHTML = '';
+        grid.appendChild(tag('p', { className: 'col-span-full text-center text-slate-500 py-10', textContent: 'Nincsenek beállított hírforrások.' }));
+        return;
+    }
 
     try {
         const promises = feeds.map(feed =>
             fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data.status === 'ok') {
+                    if (data && data.status === 'ok' && Array.isArray(data.items)) {
                         return data.items.map(item => ({
                             ...item,
                             source: feed.name,
@@ -40,28 +80,9 @@ export async function fetchNews() {
         );
 
         const results = await Promise.all(promises);
-        allArticles = results.flat().sort((a, b) => b.timestamp - a.timestamp);
+        cachedNewsArticles = results.flat().sort((a, b) => b.timestamp - a.timestamp);
 
-        const ONE_DAY = 24 * 60 * 60 * 1000;
-        const now = Date.now();
-        let closed = config.closedNews || [];
-
-        // Migrate legacy formats and filter out items older than 24h
-        closed = closed.map(item => {
-            if (typeof item === 'string') {
-                return { link: item, timestamp: now };
-            }
-            return item;
-        }).filter(item => (now - item.timestamp) < ONE_DAY);
-
-        config.closedNews = closed;
-        saveConfig();
-
-        const closedLinks = closed.map(item => item.link);
-        const filteredArticles = allArticles.filter(item => !closedLinks.includes(item.link));
-
-        const count = config.newsCount || 15;
-        renderNews(filteredArticles.slice(0, count));
+        filterAndRenderArticles();
     } catch (e) {
         grid.innerHTML = '';
         grid.appendChild(tag('p', { className: 'col-span-full text-center text-slate-500 py-10', textContent: 'Hiba történt a hírek betöltésekor.' }));
@@ -73,9 +94,19 @@ export async function fetchNews() {
  */
 export function renderNews(articles) {
     const grid = document.getElementById('news-grid');
-    if (!grid || !articles.length) return;
+    if (!grid) return;
 
-    grid.textContent = '';
+    grid.innerHTML = '';
+
+    if (!articles || !articles.length) {
+        grid.appendChild(tag('div', { className: 'col-span-full flex flex-col items-center justify-center py-16 text-slate-500 space-y-2' }, [
+            createLucideIcon('inbox', 'w-10 h-10 opacity-40'),
+            tag('p', { className: 'text-sm font-medium', textContent: 'Nincsenek megjeleníthető hírek.' })
+        ]));
+        refreshLucideIcons();
+        return;
+    }
+
     articles.forEach(article => {
         const dateStr = new Date(article.timestamp).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
 
@@ -125,7 +156,7 @@ export function renderNews(articles) {
         ]);
         grid.appendChild(card);
     });
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**
@@ -149,17 +180,18 @@ export function renderNewsFeedsSettings() {
                     config.newsFeeds.splice(index, 1);
                     saveConfig();
                     renderNewsFeedsSettings();
-                    fetchNews();
+                    cachedNewsArticles = null;
+                    fetchNews(true);
                 }
             }, [createLucideIcon('trash-2', 'w-3 h-3')])
         ]);
         list.appendChild(item);
     });
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**
- * Hide an article and save to configuration
+ * Hide an article and save to configuration (uses memory cache to avoid network request)
  */
 export function hideArticle(link) {
     if (!config.closedNews) {
@@ -169,9 +201,16 @@ export function hideArticle(link) {
     if (!closedLinks.includes(link)) {
         config.closedNews.push({ link, timestamp: Date.now() });
         saveConfig();
-        fetchNews();
+        filterAndRenderArticles();
         updateRestoreNewsVisibility();
     }
+}
+
+/**
+ * Clear cached news articles when feeds or settings change
+ */
+export function invalidateNewsCache() {
+    cachedNewsArticles = null;
 }
 
 /**

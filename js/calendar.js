@@ -642,18 +642,18 @@ export function renderCalendarGrid(events, isOffline = false) {
                         tag('div', { className: "flex flex-col min-w-0" }, [
                             tag('span', { className: "text-xs font-bold text-white leading-tight", textContent: e.summary }),
                             e.calendarName ? tag('span', { 
-                                className: "text-[10px] font-bold tracking-wider uppercase mt-0.5", 
+                                className: "text-xs font-bold tracking-wider uppercase mt-0.5", 
                                 style: `color: ${e.color || 'var(--accent)'};`, 
                                 textContent: e.calendarName 
                             }) : null
                         ]),
-                        tag('span', { className: "text-[11px] text-slate-400 font-mono whitespace-nowrap shrink-0", textContent: e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'Egész nap' })
+                        tag('span', { className: "text-xs text-slate-400 font-mono whitespace-nowrap shrink-0", textContent: e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'Egész nap' })
                     ]),
-                    e.location ? tag('div', { className: "flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5" }, [
+                    e.location ? tag('div', { className: "flex items-center gap-1.5 text-xs text-slate-400 pt-0.5" }, [
                         createLucideIcon('map-pin', 'w-3 h-3 text-slate-500 shrink-0'),
                         tag('span', { className: "truncate", textContent: e.location })
                     ]) : null,
-                    e.description ? tag('p', { className: "text-[11px] text-slate-400 line-clamp-2 leading-relaxed pt-0.5 opacity-80", textContent: e.description.slice(0, 120) }) : null
+                    e.description ? tag('p', { className: "text-xs text-slate-400 line-clamp-2 leading-relaxed pt-0.5 opacity-80", textContent: e.description.slice(0, 120) }) : null
                 ])))
             ]);
             wrapper.appendChild(card);

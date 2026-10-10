@@ -75,6 +75,14 @@ function migrateConfig(saved) {
             saved.calendars = [];
         }
     }
+    // Ensure kanban structure integrity
+    if (!saved.kanban || typeof saved.kanban !== 'object') {
+        saved.kanban = { todo: [], progress: [], done: [] };
+    } else {
+        if (!Array.isArray(saved.kanban.todo)) saved.kanban.todo = [];
+        if (!Array.isArray(saved.kanban.progress)) saved.kanban.progress = [];
+        if (!Array.isArray(saved.kanban.done)) saved.kanban.done = [];
+    }
     return saved;
 }
 
@@ -91,28 +99,39 @@ export async function loadConfig() {
     };
 
     return new Promise((resolve) => {
+        const applyLoaded = (saved) => {
+            if (saved) {
+                saved = migrateConfig(saved);
+                config = {
+                    ...config,
+                    ...saved,
+                    kanban: {
+                        ...config.kanban,
+                        ...(saved.kanban || {})
+                    },
+                    ...loadImages()
+                };
+            }
+        };
+
         if (extAPI && extAPI.storage && extAPI.storage.sync) {
             extAPI.storage.sync.get('wolfhome_config', (result) => {
-                let saved = result.wolfhome_config;
+                let saved = result ? result.wolfhome_config : null;
                 if (!saved) {
                     const local = localStorage.getItem('wolfhome_config');
                     if (local) {
                         try { saved = JSON.parse(local); } catch (e) { }
                     }
                 }
-                if (saved) {
-                    saved = migrateConfig(saved);
-                    config = { ...config, ...saved, ...loadImages() };
-                }
+                applyLoaded(saved);
                 resolve();
             });
         } else {
             const local = localStorage.getItem('wolfhome_config');
             if (local) {
                 try {
-                    let saved = JSON.parse(local);
-                    saved = migrateConfig(saved);
-                    config = { ...config, ...saved, ...loadImages() };
+                    const saved = JSON.parse(local);
+                    applyLoaded(saved);
                 } catch (e) { }
             }
             resolve();
@@ -120,10 +139,32 @@ export async function loadConfig() {
     });
 }
 
+let saveConfigTimer = null;
+
+/**
+ * Debounced save for high-frequency input events (sliders, typing)
+ */
+export function debouncedSaveConfig(delay = 300) {
+    if (saveConfigTimer) clearTimeout(saveConfigTimer);
+    saveConfigTimer = setTimeout(() => {
+        saveConfig();
+    }, delay);
+}
+
 /**
  * Save configuration to storage
  */
 export function saveConfig() {
+    if (saveConfigTimer) {
+        clearTimeout(saveConfigTimer);
+        saveConfigTimer = null;
+    }
+
+    // Limit closedNews size to prevent storage overflow
+    if (Array.isArray(config.closedNews) && config.closedNews.length > 100) {
+        config.closedNews = config.closedNews.slice(-100);
+    }
+
     const syncConfig = {};
     const imageData = {};
 
@@ -144,7 +185,11 @@ export function saveConfig() {
     try {
         localStorage.setItem('wolfhome_config', JSON.stringify(syncConfig));
         if (extAPI && extAPI.storage && extAPI.storage.sync) {
-            extAPI.storage.sync.set({ 'wolfhome_config': syncConfig });
+            extAPI.storage.sync.set({ 'wolfhome_config': syncConfig }, () => {
+                if (extAPI.runtime && extAPI.runtime.lastError) {
+                    console.warn('Sync storage mentési hiba (lehet hogy kvóta túllépés):', extAPI.runtime.lastError.message);
+                }
+            });
         }
     } catch (e) {
         console.warn('Beállítások mentése sikertelen:', e);

@@ -2,7 +2,7 @@
  * WolfHome Kanban Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon } from './utils.js';
+import { tag, createLucideIcon, refreshLucideIcons } from './utils.js';
 
 /**
  * Render the Kanban board columns and cards
@@ -10,6 +10,7 @@ import { tag, createLucideIcon } from './utils.js';
 let activeEditingCardId = null;
 let activeEditingColId = 'todo';
 let kanbanFilterQuery = '';
+let sortableInstances = [];
 
 export function setKanbanSearchQuery(query) {
     kanbanFilterQuery = (query || '').toLowerCase().trim();
@@ -27,6 +28,12 @@ const PRIORITY_CONFIG = {
  * Render the Kanban board columns and cards
  */
 export function renderKanban() {
+    // Clean up previous Sortable instances to prevent memory leaks and duplicate handlers
+    sortableInstances.forEach(inst => {
+        try { inst.destroy(); } catch (e) { }
+    });
+    sortableInstances = [];
+
     const cols = ['todo', 'progress', 'done'];
     cols.forEach(colId => {
         const container = document.getElementById(`kanban-${colId}`);
@@ -48,12 +55,13 @@ export function renderKanban() {
             const pConf = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.none;
 
             const priorityBadge = priority !== 'none' ? tag('span', {
-                className: `text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${pConf.badgeClass}`,
+                className: `text-xs font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${pConf.badgeClass}`,
                 textContent: pConf.label
             }) : null;
 
+            const cursorClass = kanbanFilterQuery ? 'cursor-default' : 'cursor-grab active:cursor-grabbing';
             const el = tag('div', {
-                className: "kanban-item group cursor-grab active:cursor-grabbing space-y-2",
+                className: `kanban-item group ${cursorClass} space-y-2`,
                 id: `kanban-card-${card.id}`
             }, [
                 tag('div', { className: "flex justify-between items-start gap-2" }, [
@@ -77,11 +85,12 @@ export function renderKanban() {
             container.appendChild(el);
         });
 
-        // Initialize Sortable for each column
+        // Initialize Sortable for each column (disabled while filtering to prevent corrupted array indices)
         if (window.Sortable) {
-            new window.Sortable(container, {
+            const sortable = new window.Sortable(container, {
                 group: 'kanban',
                 animation: 150,
+                disabled: !!kanbanFilterQuery,
                 ghostClass: 'sortable-ghost',
                 dragClass: 'sortable-drag',
                 onEnd: (evt) => {
@@ -89,19 +98,22 @@ export function renderKanban() {
                     const toCol = evt.to.id.replace('kanban-', '');
                     const cardId = evt.item.id.replace('kanban-card-', '');
 
-                    // Move card in data
-                    const cardIndex = config.kanban[fromCol].findIndex(c => c.id === cardId);
+                    // Move card in data safely
+                    const fromList = config.kanban[fromCol] || [];
+                    const toList = config.kanban[toCol] || [];
+                    const cardIndex = fromList.findIndex(c => c.id === cardId);
                     if (cardIndex > -1) {
-                        const [card] = config.kanban[fromCol].splice(cardIndex, 1);
-                        config.kanban[toCol].splice(evt.newIndex, 0, card);
+                        const [card] = fromList.splice(cardIndex, 1);
+                        toList.splice(evt.newIndex, 0, card);
                         saveConfig();
                         updateKanbanCounters();
                     }
                 }
             });
+            sortableInstances.push(sortable);
         }
     });
-    if (window.lucide) window.lucide.createIcons();
+    refreshLucideIcons();
 }
 
 /**
@@ -207,7 +219,8 @@ export function closeKanbanModal() {
 /**
  * Delete a Kanban card
  */
-export function deleteKanbanCard(cardId, colId) {
+export function deleteKanbanCard(cardId = activeEditingCardId, colId = activeEditingColId) {
+    if (!cardId || !colId || !config.kanban[colId]) return;
     if (confirm("Biztosan törlöd ezt a feladatot?")) {
         config.kanban[colId] = config.kanban[colId].filter(c => c.id !== cardId);
         saveConfig();
