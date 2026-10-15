@@ -2,9 +2,239 @@
  * WolfHome News Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon, refreshLucideIcons } from './utils.js';
+import { tag, createLucideIcon, refreshLucideIcons, extAPI } from './utils.js';
 
 let cachedNewsArticles = null;
+
+/**
+ * Safely decodes HTML entities in text
+ */
+function decodeHtmlEntities(str) {
+    if (!str || !str.includes('&')) return str || '';
+    try {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = str;
+        return txt.value;
+    } catch {
+        return str
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&apos;/g, "'");
+    }
+}
+
+/**
+ * Format article publication date
+ */
+function formatArticleDate(timestamp) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+
+    if (isToday) {
+        return d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('hu-HU', { month: '2-digit', day: '2-digit' }) + ' ' +
+           d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Parse raw RSS / Atom XML string into article objects
+ */
+export function parseFeedXml(xmlText, feed) {
+    if (!xmlText || typeof xmlText !== 'string') return [];
+
+    let doc;
+    try {
+        const parser = new DOMParser();
+        doc = parser.parseFromString(xmlText, 'text/xml');
+        if (doc.querySelector('parsererror')) {
+            // Sanitize unescaped ampersands which frequently break XML parsers
+            const sanitized = xmlText.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
+            doc = parser.parseFromString(sanitized, 'text/xml');
+        }
+    } catch (e) {
+        console.warn('[News] XML értelmezési hiba:', e);
+        return [];
+    }
+
+    if (!doc || doc.querySelector('parsererror')) {
+        console.warn('[News] Érvénytelen RSS/Atom XML formátum:', feed?.url);
+        return [];
+    }
+
+    // Detect RSS vs Atom
+    let items = Array.from(doc.querySelectorAll('item'));
+    const isAtom = items.length === 0 && doc.querySelectorAll('entry').length > 0;
+    if (isAtom) {
+        items = Array.from(doc.querySelectorAll('entry'));
+    }
+
+    const defaultSource = feed?.name || doc.querySelector('channel > title, feed > title')?.textContent?.trim() || 'Hírek';
+
+    return items.map(item => {
+        // 1. Title
+        const rawTitle = item.querySelector('title')?.textContent || '';
+        const title = decodeHtmlEntities(rawTitle.trim());
+
+        // 2. Link
+        let link = '';
+        if (isAtom) {
+            const linkEl = item.querySelector('link[rel="alternate"]') || item.querySelector('link');
+            link = linkEl?.getAttribute('href') || linkEl?.textContent?.trim() || '';
+        } else {
+            const linkEl = item.querySelector('link');
+            link = linkEl?.textContent?.trim() || linkEl?.getAttribute('href') || '';
+        }
+        if (!link) {
+            const guidEl = item.querySelector('guid, id');
+            const guid = guidEl?.textContent?.trim() || '';
+            if (guid.startsWith('http')) link = guid;
+        }
+
+        // 3. Date & Timestamp
+        const dateStr = item.querySelector('pubDate, published, updated, dc\\:date, date')?.textContent?.trim() || '';
+        let timestamp = dateStr ? new Date(dateStr).getTime() : Date.now();
+        if (isNaN(timestamp)) timestamp = Date.now();
+
+        // 4. Description & Content
+        const descEl = item.querySelector('description, summary');
+        const description = descEl?.textContent?.trim() || '';
+        const contentEl = item.getElementsByTagName('content:encoded')[0] || 
+                          item.getElementsByTagNameNS('*', 'encoded')[0] || 
+                          item.querySelector('content');
+        const content = contentEl?.textContent?.trim() || '';
+
+        // 5. Image extraction
+        let imageUrl = '';
+        // 5a. Enclosure tag
+        const enclosures = item.querySelectorAll('enclosure');
+        for (const enc of enclosures) {
+            const u = enc.getAttribute('url') || enc.getAttribute('thumbnail');
+            const type = enc.getAttribute('type') || '';
+            if (u && (type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif)/i.test(u) || !type)) {
+                imageUrl = u;
+                break;
+            }
+        }
+        // 5b. Media tags (content, thumbnail)
+        if (!imageUrl) {
+            const mediaEls = [
+                ...Array.from(item.getElementsByTagName('media:content')),
+                ...Array.from(item.getElementsByTagNameNS('*', 'content')),
+                ...Array.from(item.getElementsByTagName('media:thumbnail')),
+                ...Array.from(item.getElementsByTagNameNS('*', 'thumbnail'))
+            ];
+            for (const media of mediaEls) {
+                const u = media.getAttribute('url');
+                const medium = media.getAttribute('medium');
+                const type = media.getAttribute('type') || '';
+                if (u && (medium === 'image' || type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif)/i.test(u) || (!medium && !type))) {
+                    imageUrl = u;
+                    break;
+                }
+            }
+        }
+        // 5c. Itunes image or generic image tags
+        if (!imageUrl) {
+            const itunesImg = item.getElementsByTagName('itunes:image')[0] || item.getElementsByTagNameNS('*', 'image')[0];
+            const href = itunesImg?.getAttribute('href') || itunesImg?.getAttribute('url');
+            if (href) imageUrl = href;
+        }
+        // 5d. img tags in HTML content / description
+        if (!imageUrl) {
+            const combinedHtml = (description || '') + ' ' + (content || '');
+            const imgMatch = combinedHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+            if (imgMatch && imgMatch[1]) {
+                imageUrl = imgMatch[1];
+            }
+        }
+
+        return {
+            title,
+            link,
+            pubDate: dateStr,
+            timestamp,
+            description,
+            content,
+            thumbnail: imageUrl,
+            enclosure: imageUrl ? { link: imageUrl } : null,
+            source: defaultSource
+        };
+    }).filter(article => article.title && article.link);
+}
+
+/**
+ * Fetch raw feed XML with multiple fallbacks:
+ * 1. Extension background message (bypasses CORS in browser extension)
+ * 2. Direct fetch with timeout (fastest if CORS allowed or in extension page)
+ * 3. Public CORS proxies (fallback for standalone / dev web testing)
+ */
+async function fetchFeedText(url) {
+    // 1. Try extension background worker if available
+    const hasSendMessage = extAPI && extAPI.runtime && extAPI.runtime.sendMessage && extAPI.runtime.id;
+    if (hasSendMessage) {
+        try {
+            const result = await new Promise((resolve, reject) => {
+                extAPI.runtime.sendMessage({ action: 'fetchFeed', url }, response => {
+                    if (extAPI.runtime.lastError) {
+                        return reject(new Error(extAPI.runtime.lastError.message));
+                    }
+                    if (response && response.success) {
+                        return resolve(response.text);
+                    }
+                    reject(new Error(response?.error || 'Ismeretlen hiba a háttérben.'));
+                });
+            });
+            if (result) return result;
+        } catch (extErr) {
+            console.warn(`[News] Háttér lekérés meghiúsult (${url}):`, extErr.message);
+        }
+    }
+
+    // 2. Direct fetch with timeout
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+            const text = await res.text();
+            if (text && text.trim().length > 0) return text;
+        }
+    } catch (directErr) {
+        console.warn(`[News] Közvetlen fetch sikertelen (${url}):`, directErr.message);
+    }
+
+    // 3. Fallback proxies for non-extension / CORS restricted environments
+    const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://corsproxy.io/?url=${encodeURIComponent(url)}`
+    ];
+
+    for (const proxyUrl of proxies) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const res = await fetch(proxyUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (res.ok) {
+                const text = await res.text();
+                if (text && text.trim().length > 0) return text;
+            }
+        } catch {
+            // try next proxy
+        }
+    }
+
+    throw new Error(`Nem sikerült betölteni a hírforrást: ${url}`);
+}
 
 /**
  * Filter and render articles using current configuration
@@ -63,27 +293,25 @@ export async function fetchNews(forceRefresh = false) {
     }
 
     try {
-        const promises = feeds.map(feed =>
-            fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.status === 'ok' && Array.isArray(data.items)) {
-                        return data.items.map(item => ({
-                            ...item,
-                            source: feed.name,
-                            timestamp: new Date(item.pubDate).getTime()
-                        }));
-                    }
-                    return [];
-                })
-                .catch(() => [])
-        );
+        const promises = feeds.map(async feed => {
+            try {
+                const xmlText = await fetchFeedText(feed.url);
+                return parseFeedXml(xmlText, feed);
+            } catch (err) {
+                console.warn(`[News] Hiba a hírforrás betöltésekor (${feed.name || feed.url}):`, err.message);
+                return [];
+            }
+        });
 
-        const results = await Promise.all(promises);
-        cachedNewsArticles = results.flat().sort((a, b) => b.timestamp - a.timestamp);
+        const results = await Promise.allSettled(promises);
+        const articles = results
+            .filter(r => r.status === 'fulfilled')
+            .flatMap(r => r.value);
 
+        cachedNewsArticles = articles.sort((a, b) => b.timestamp - a.timestamp);
         filterAndRenderArticles();
     } catch (e) {
+        console.error('[News] Hiba történt a hírek betöltésekor:', e);
         grid.innerHTML = '';
         grid.appendChild(tag('p', { className: 'col-span-full text-center text-slate-500 py-10', textContent: 'Hiba történt a hírek betöltésekor.' }));
     }
@@ -108,7 +336,7 @@ export function renderNews(articles) {
     }
 
     articles.forEach(article => {
-        const dateStr = new Date(article.timestamp).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = formatArticleDate(article.timestamp);
 
         // Smarter image extraction
         let imageUrl = article.enclosure?.link || article.thumbnail;

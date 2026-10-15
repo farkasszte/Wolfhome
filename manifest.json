@@ -8,6 +8,7 @@
     "declarativeNetRequest"
   ],
   "host_permissions": [
+    "*://*/*",
     "https://wttr.in/*",
     "https://open.er-api.com/*",
     "https://www.googleapis.com/*",

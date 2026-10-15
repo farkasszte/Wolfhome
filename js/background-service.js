@@ -101,7 +101,7 @@ const runtimeAPI = (typeof chrome !== 'undefined' && chrome.runtime) ? chrome.ru
 
 if (runtimeAPI) {
     runtimeAPI.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.action === 'fetchIcal') {
+        if (message.action === 'fetchIcal' || message.action === 'fetchFeed' || message.action === 'fetchUrl') {
             fetch(message.url)
                 .then(res => {
                     if (!res.ok) throw new Error(`Szerver hiba: ${res.status}`);
