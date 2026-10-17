@@ -85,7 +85,7 @@ async function init() {
 function renderCalendarsSettings() {
     const list = document.getElementById('settings-calendars-list');
     if (!list) return;
-    list.innerHTML = '';
+    list.replaceChildren();
 
     const calendars = config.calendars || [];
     if (calendars.length === 0) {

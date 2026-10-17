@@ -12,9 +12,8 @@ let cachedNewsArticles = null;
 function decodeHtmlEntities(str) {
     if (!str || !str.includes('&')) return str || '';
     try {
-        const txt = document.createElement('textarea');
-        txt.innerHTML = str;
-        return txt.value;
+        const doc = new DOMParser().parseFromString(str, 'text/html');
+        return doc.documentElement.textContent || '';
     } catch {
         return str
             .replace(/&amp;/g, '&')
@@ -278,7 +277,7 @@ export async function fetchNews(forceRefresh = false) {
     }
 
     // Show loading state
-    grid.innerHTML = '';
+    grid.replaceChildren();
     grid.appendChild(tag('div', { className: 'col-span-full flex flex-col items-center justify-center h-64 text-slate-500 space-y-4 opacity-40 animate-pulse' }, [
         createLucideIcon('newspaper', 'w-16 h-16'),
         tag('p', { className: 'text-sm font-light uppercase tracking-widest', textContent: 'Hírek frissítése...' })
@@ -287,7 +286,7 @@ export async function fetchNews(forceRefresh = false) {
 
     const feeds = config.newsFeeds || [];
     if (!feeds.length) {
-        grid.innerHTML = '';
+        grid.replaceChildren();
         grid.appendChild(tag('p', { className: 'col-span-full text-center text-slate-500 py-10', textContent: 'Nincsenek beállított hírforrások.' }));
         return;
     }
@@ -312,7 +311,7 @@ export async function fetchNews(forceRefresh = false) {
         filterAndRenderArticles();
     } catch (e) {
         console.error('[News] Hiba történt a hírek betöltésekor:', e);
-        grid.innerHTML = '';
+        grid.replaceChildren();
         grid.appendChild(tag('p', { className: 'col-span-full text-center text-slate-500 py-10', textContent: 'Hiba történt a hírek betöltésekor.' }));
     }
 }
@@ -324,7 +323,7 @@ export function renderNews(articles) {
     const grid = document.getElementById('news-grid');
     if (!grid) return;
 
-    grid.innerHTML = '';
+    grid.replaceChildren();
 
     if (!articles || !articles.length) {
         grid.appendChild(tag('div', { className: 'col-span-full flex flex-col items-center justify-center py-16 text-slate-500 space-y-2' }, [
@@ -393,7 +392,7 @@ export function renderNews(articles) {
 export function renderNewsFeedsSettings() {
     const list = document.getElementById('news-feeds-list');
     if (!list) return;
-    list.innerHTML = '';
+    list.replaceChildren();
 
     const feeds = config.newsFeeds || [];
     feeds.forEach((feed, index) => {

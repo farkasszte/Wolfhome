@@ -39,7 +39,7 @@ export function renderKanban() {
         const container = document.getElementById(`kanban-${colId}`);
         const countEl = document.getElementById(`kanban-${colId}-count`);
         if (!container) return;
-        container.innerHTML = '';
+        container.replaceChildren();
 
         const allCards = config.kanban[colId] || [];
         const cards = kanbanFilterQuery 

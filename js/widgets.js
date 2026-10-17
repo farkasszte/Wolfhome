@@ -288,7 +288,7 @@ function renderWeatherData(data, isStale = false, timestamp = 0) {
 
     const iconName = getWeatherIconName(current.weatherCode);
     if (weatherIconEl) {
-        weatherIconEl.innerHTML = '';
+        weatherIconEl.replaceChildren();
         weatherIconEl.appendChild(createLucideIcon(iconName, "w-10 h-10 text-slate-300"));
     }
 
@@ -404,7 +404,7 @@ function renderForecast(weatherDays, cityName) {
     if (!card || !daysContainer || !weatherDays || !weatherDays.length) return;
 
     if (forecastCity) forecastCity.textContent = cityName;
-    daysContainer.innerHTML = '';
+    daysContainer.replaceChildren();
 
     const dayLabels = ['Ma', 'Holnap', 'Holnapután'];
 

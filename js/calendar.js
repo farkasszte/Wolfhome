@@ -362,16 +362,22 @@ function showAuthButton() {
 
         const placeholder = document.getElementById('calendar-placeholder');
         if (placeholder) {
-            placeholder.innerHTML = `
-                <div class="flex flex-col items-center justify-center space-y-4 text-center p-8 max-w-sm mx-auto h-full">
-                    <i data-lucide="calendar-days" class="w-16 h-16 text-slate-600 opacity-40"></i>
-                    <h3 class="text-lg font-bold text-slate-300">Nincs Google Naptár kapcsolat</h3>
-                    <p class="text-xs text-slate-500">Másold be a Google Naptárad <b>Titkos iCal címét</b> a beállításokban a naptár szinkronizálásához.</p>
-                    <button id="calendar-setup-btn" class="px-4 py-2 bg-accent/20 text-accent border border-accent/30 rounded-xl hover:bg-accent/30 transition-all text-xs font-bold uppercase tracking-widest cursor-pointer">
-                        Beállítás megnyitása
-                    </button>
-                </div>
-            `;
+            placeholder.replaceChildren(
+                tag('div', { className: 'flex flex-col items-center justify-center space-y-4 text-center p-8 max-w-sm mx-auto h-full' }, [
+                    tag('i', { 'data-lucide': 'calendar-days', className: 'w-16 h-16 text-slate-600 opacity-40' }),
+                    tag('h3', { className: 'text-lg font-bold text-slate-300', textContent: 'Nincs Google Naptár kapcsolat' }),
+                    tag('p', { className: 'text-xs text-slate-500' }, [
+                        'Másold be a Google Naptárad ',
+                        tag('b', { textContent: 'Titkos iCal címét' }),
+                        ' a beállításokban a naptár szinkronizálásához.'
+                    ]),
+                    tag('button', {
+                        id: 'calendar-setup-btn',
+                        className: 'px-4 py-2 bg-accent/20 text-accent border border-accent/30 rounded-xl hover:bg-accent/30 transition-all text-xs font-bold uppercase tracking-widest cursor-pointer',
+                        textContent: 'Beállítás megnyitása'
+                    })
+                ])
+            );
             if (window.lucide) window.lucide.createIcons();
             
             document.getElementById('calendar-setup-btn')?.addEventListener('click', async () => {

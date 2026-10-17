@@ -92,12 +92,12 @@ function getSafeHostname(urlStr) {
 export function renderLinks() {
     const linksGrid = document.getElementById('links-grid');
     if (!linksGrid) return;
-    linksGrid.innerHTML = '';
+    linksGrid.replaceChildren();
     
     const isLocked = config.isLocked !== false;
     const lockBtn = document.getElementById('lock-toggle-btn');
     if (lockBtn) {
-        lockBtn.innerHTML = '';
+        lockBtn.replaceChildren();
         lockBtn.appendChild(createLucideIcon(isLocked ? 'lock' : 'unlock', "w-4 h-4"));
         lockBtn.className = `p-2 rounded-full transition-colors ${isLocked ? 'text-slate-500 hover:bg-white/5' : 'text-accent bg-accent/10 hover:bg-accent/20'}`;
     }
