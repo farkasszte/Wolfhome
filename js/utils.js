@@ -5,6 +5,39 @@
 export const extAPI = typeof browser !== 'undefined' ? browser : (typeof chrome !== 'undefined' ? chrome : null);
 
 /**
+ * Safely sends a message to the background service worker/script (cross-browser for Firefox and Chrome)
+ */
+export async function sendExtensionMessage(message) {
+    // 1. Firefox native WebExtension API (browser.runtime.sendMessage returns a Promise)
+    if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
+        try {
+            const resp = await browser.runtime.sendMessage(message);
+            if (resp) return resp;
+        } catch (e) {
+            console.warn('[Extension] browser.runtime.sendMessage sikertelen, megpróbáljuk chrome API-val:', e.message);
+        }
+    }
+
+    // 2. Chromium / Chrome runtime API
+    if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
+        return new Promise((resolve, reject) => {
+            try {
+                chrome.runtime.sendMessage(message, response => {
+                    if (chrome.runtime.lastError) {
+                        return reject(new Error(chrome.runtime.lastError.message));
+                    }
+                    resolve(response);
+                });
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
+    throw new Error('Nem található elérhető böngésző bővítmény háttér API.');
+}
+
+/**
  * Helper to create Lucide icons
  */
 export function createLucideIcon(iconName, classes = "") {

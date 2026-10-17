@@ -2,7 +2,7 @@
  * WolfHome News Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon, refreshLucideIcons, extAPI } from './utils.js';
+import { tag, createLucideIcon, refreshLucideIcons, extAPI, sendExtensionMessage } from './utils.js';
 
 let cachedNewsArticles = null;
 
@@ -176,28 +176,20 @@ export function parseFeedXml(xmlText, feed) {
  * 3. Public CORS proxies (fallback for standalone / dev web testing)
  */
 async function fetchFeedText(url) {
-    // 1. Try extension background worker if available
-    const hasSendMessage = extAPI && extAPI.runtime && extAPI.runtime.sendMessage && extAPI.runtime.id;
-    if (hasSendMessage) {
-        try {
-            const result = await new Promise((resolve, reject) => {
-                extAPI.runtime.sendMessage({ action: 'fetchFeed', url }, response => {
-                    if (extAPI.runtime.lastError) {
-                        return reject(new Error(extAPI.runtime.lastError.message));
-                    }
-                    if (response && response.success) {
-                        return resolve(response.text);
-                    }
-                    reject(new Error(response?.error || 'Ismeretlen hiba a háttérben.'));
-                });
-            });
-            if (result) return result;
-        } catch (extErr) {
-            console.warn(`[News] Háttér lekérés meghiúsult (${url}):`, extErr.message);
+    // 1. Try extension background worker first (bypasses CORS in browser extension)
+    try {
+        const response = await sendExtensionMessage({ action: 'fetchFeed', url });
+        if (response && response.success && response.text) {
+            return response.text;
         }
+        if (response && response.error) {
+            console.warn(`[News] Háttér lekérési hiba (${url}):`, response.error);
+        }
+    } catch (extErr) {
+        console.warn(`[News] Háttér lekérés meghiúsult (${url}):`, extErr.message);
     }
 
-    // 2. Direct fetch with timeout
+    // 2. Direct fetch with timeout (fallback for open CORS feeds or standalone)
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -209,27 +201,6 @@ async function fetchFeedText(url) {
         }
     } catch (directErr) {
         console.warn(`[News] Közvetlen fetch sikertelen (${url}):`, directErr.message);
-    }
-
-    // 3. Fallback proxies for non-extension / CORS restricted environments
-    const proxies = [
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        `https://corsproxy.io/?url=${encodeURIComponent(url)}`
-    ];
-
-    for (const proxyUrl of proxies) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
-            const res = await fetch(proxyUrl, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (res.ok) {
-                const text = await res.text();
-                if (text && text.trim().length > 0) return text;
-            }
-        } catch {
-            // try next proxy
-        }
     }
 
     throw new Error(`Nem sikerült betölteni a hírforrást: ${url}`);

@@ -2,7 +2,7 @@
  * WolfHome Calendar Module
  */
 import { config, saveConfig } from './config.js';
-import { tag, createLucideIcon, extAPI } from './utils.js';
+import { tag, createLucideIcon, extAPI, sendExtensionMessage } from './utils.js';
 import { namedayDB, getNameday } from './nameday-db.js';
 export { getNameday };
 
@@ -297,27 +297,21 @@ export async function checkAuth() {
 }
 
 async function fetchSingleIcal(url) {
-    const hasSendMessage = extAPI && extAPI.runtime && extAPI.runtime.sendMessage;
-
-    if (!hasSendMessage) {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Letöltési hiba: ${response.status}`);
-        return await response.text();
+    try {
+        const response = await sendExtensionMessage({ action: 'fetchIcal', url: url });
+        if (response && response.success && response.text) {
+            return response.text;
+        }
+        if (response && response.error) {
+            throw new Error(response.error);
+        }
+    } catch (extErr) {
+        console.warn(`[Calendar] Háttér lekérés meghiúsult, közvetlen próbálkozás (${url}):`, extErr.message);
     }
 
-    return new Promise((resolve, reject) => {
-        extAPI.runtime.sendMessage({ action: 'fetchIcal', url: url }, (response) => {
-            if (extAPI.runtime.lastError) {
-                reject(new Error(extAPI.runtime.lastError.message));
-                return;
-            }
-            if (response && response.success) {
-                resolve(response.text);
-            } else {
-                reject(new Error(response ? response.error : "Ismeretlen hiba a háttérben."));
-            }
-        });
-    });
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Letöltési hiba: ${response.status}`);
+    return await response.text();
 }
 
 async function fetchAllCalendarEvents(calendars) {

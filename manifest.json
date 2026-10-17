@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Home Dashboard",
-  "version": "2.5",
+  "version": "2.6",
   "description": "Premium start page with Google Calendar and Name Day integration.",
   "permissions": [
     "storage",
@@ -21,8 +21,7 @@
     "scripts": [
       "js/background-service.js"
     ],
-    "service_worker": "js/background-service.js",
-    "type": "module"
+    "service_worker": "js/background-service.js"
   },
   "chrome_url_overrides": {
     "newtab": "index.html"

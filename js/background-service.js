@@ -1,9 +1,40 @@
 /**
- * WolfHome Background Service Worker
- * Handles header modification for iframes and keep-alive sessions.
+ * WolfHome Background Service Worker / Script
+ * Handles network requests (bypassing CORS for RSS feeds & iCal), header modification, and session keep-alive.
  */
 
-// Dynamic rules to strip security headers (X-Frame-Options, CSP) for trusted e-Kréta domains inside the iframe
+async function handleFetchRequest(url) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Szerver hiba: ${res.status}`);
+        const text = await res.text();
+        return { success: true, text };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+// 1. Message listener registered immediately for cross-browser fetching (bypasses CORS in Firefox & Chrome)
+if (typeof browser !== 'undefined' && browser?.runtime?.onMessage) {
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === 'fetchIcal' || message.action === 'fetchFeed' || message.action === 'fetchUrl') {
+            const p = handleFetchRequest(message.url);
+            p.then(res => {
+                try { sendResponse(res); } catch (e) { }
+            });
+            return p; // Native Firefox Promise support
+        }
+    });
+} else if (typeof chrome !== 'undefined' && chrome?.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === 'fetchIcal' || message.action === 'fetchFeed' || message.action === 'fetchUrl') {
+            handleFetchRequest(message.url).then(sendResponse);
+            return true; // Keep channel open for asynchronous sendResponse in Chrome
+        }
+    });
+}
+
+// 2. Dynamic rules to strip security headers (X-Frame-Options, CSP) for trusted e-Kréta domains inside the iframe
 const KRETA_RULES = [
     {
         id: 1,
@@ -24,56 +55,66 @@ const KRETA_RULES = [
 ];
 
 // Register declarativeNetRequest rules dynamically in Manifest V3
-if (typeof chrome !== 'undefined' && chrome.declarativeNetRequest) {
-    chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [1, 2],
-        addRules: KRETA_RULES
-    }, () => {
-        if (chrome.runtime.lastError) {
-            console.error("DNR szabály regisztrációs hiba:", chrome.runtime.lastError);
-        } else {
-            console.log("e-Kréta fejléc szabályok sikeresen regisztrálva.");
-        }
-    });
-} else if (typeof browser !== 'undefined' && browser.declarativeNetRequest) {
-    browser.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [1, 2],
-        addRules: KRETA_RULES
-    });
+try {
+    if (typeof browser !== 'undefined' && browser?.declarativeNetRequest) {
+        browser.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: [1, 2],
+            addRules: KRETA_RULES
+        }).catch(err => console.warn("DNR szabály frissítési figyelmeztetés:", err));
+    } else if (typeof chrome !== 'undefined' && chrome?.declarativeNetRequest) {
+        chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: [1, 2],
+            addRules: KRETA_RULES
+        }, () => {
+            if (chrome.runtime?.lastError) {
+                console.warn("DNR szabály regisztrációs figyelmeztetés:", chrome.runtime.lastError.message);
+            }
+        });
+    }
+} catch (e) {
+    console.warn("DNR inicializációs hiba:", e);
 }
 
-// Session Keep-alive: Ping e-Kréta dynamically matching the configured URL every 10 minutes
+// 3. Session Keep-alive: Ping e-Kréta dynamically matching the configured URL every 10 minutes
 let currentKretaUrl = '';
 
 function updateKretaUrlFromStorage() {
-    const storageAPI = (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync)
-        ? chrome.storage.sync
-        : (typeof browser !== 'undefined' && browser.storage && browser.storage.sync)
-            ? browser.storage.sync
+    const storageAPI = (typeof browser !== 'undefined' && browser.storage && browser.storage.sync)
+        ? browser.storage.sync
+        : (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync)
+            ? chrome.storage.sync
             : null;
 
     if (storageAPI) {
-        storageAPI.get('wolfhome_config', (result) => {
-            if (result && result.wolfhome_config && result.wolfhome_config.kretaUrl) {
-                currentKretaUrl = result.wolfhome_config.kretaUrl;
-                console.log("e-Kréta háttér URL frissítve:", currentKretaUrl);
-            }
-        });
+        try {
+            storageAPI.get('wolfhome_config', (result) => {
+                if (result && result.wolfhome_config && result.wolfhome_config.kretaUrl) {
+                    currentKretaUrl = result.wolfhome_config.kretaUrl;
+                    console.log("e-Kréta háttér URL frissítve:", currentKretaUrl);
+                }
+            });
+        } catch (e) {
+            console.warn("Hiba a konfiguráció kiolvasásakor a háttérben:", e);
+        }
     }
 }
 
 // Listen for storage changes to update currentKretaUrl on the fly
-const storageAPI = (typeof chrome !== 'undefined' && chrome.storage) ? chrome.storage : (typeof browser !== 'undefined' && browser.storage) ? browser.storage : null;
-if (storageAPI) {
-    storageAPI.onChanged.addListener((changes, areaName) => {
-        if (areaName === 'sync' && changes.wolfhome_config) {
-            const newVal = changes.wolfhome_config.newValue;
-            if (newVal && newVal.kretaUrl) {
-                currentKretaUrl = newVal.kretaUrl;
-                console.log("e-Kréta háttér URL változás miatt frissítve:", currentKretaUrl);
+const storageAPI = (typeof browser !== 'undefined' && browser.storage) ? browser.storage : (typeof chrome !== 'undefined' && chrome.storage) ? chrome.storage : null;
+if (storageAPI && storageAPI.onChanged) {
+    try {
+        storageAPI.onChanged.addListener((changes, areaName) => {
+            if (areaName === 'sync' && changes.wolfhome_config) {
+                const newVal = changes.wolfhome_config.newValue;
+                if (newVal && newVal.kretaUrl) {
+                    currentKretaUrl = newVal.kretaUrl;
+                    console.log("e-Kréta háttér URL változás miatt frissítve:", currentKretaUrl);
+                }
             }
-        }
-    });
+        });
+    } catch (e) {
+        console.warn("Hiba a tárolófigyelő regisztrálásakor:", e);
+    }
 }
 
 // Initial load
@@ -95,27 +136,3 @@ setTimeout(pingKreta, 2000);
 
 // Interval ping (10 mins)
 setInterval(pingKreta, 10 * 60 * 1000);
-
-// Unified runtime messaging API for Chrome & Firefox MV3
-const runtimeAPI = (typeof chrome !== 'undefined' && chrome.runtime) ? chrome.runtime : (typeof browser !== 'undefined' && browser.runtime) ? browser.runtime : null;
-
-if (runtimeAPI) {
-    runtimeAPI.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.action === 'fetchIcal' || message.action === 'fetchFeed' || message.action === 'fetchUrl') {
-            fetch(message.url)
-                .then(res => {
-                    if (!res.ok) throw new Error(`Szerver hiba: ${res.status}`);
-                    return res.text();
-                })
-                .then(text => {
-                    sendResponse({ success: true, text });
-                })
-                .catch(err => {
-                    sendResponse({ success: false, error: err.message });
-                });
-            return true; // Keep message channel open for asynchronous sendResponse
-        }
-    });
-}
-
-
